@@ -37,6 +37,7 @@ export interface AmendmentFormProps {
   currentVoyageLabel: string;
   disabled?: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
+  onDraftChange?: (draft: BookingAmendmentFormValues) => void;
   requestDiscard: (onConfirm: () => void) => void;
 }
 
@@ -46,6 +47,7 @@ function AmendmentForm({
   currentVoyageLabel,
   disabled = false,
   onDirtyChange,
+  onDraftChange,
   requestDiscard,
 }: AmendmentFormProps) {
   const voyagesByIdRef = useRef(new Map<string, VoyageOption>());
@@ -95,6 +97,30 @@ function AmendmentForm({
     control,
     name: "specialInstructions",
   });
+
+  useEffect(() => {
+    onDraftChange?.({
+      bookingId: defaultValues.bookingId,
+      baseVersion: defaultValues.baseVersion,
+      portOfDischarge: portOfDischarge ?? "",
+      voyageId: voyageId ?? "",
+      cargoReadinessDate: cargoReadinessDate ?? "",
+      containers: (containers ?? []).map((container) => ({
+        equipmentType: container.equipmentType,
+        quantity: container.quantity,
+      })),
+      specialInstructions,
+    });
+  }, [
+    cargoReadinessDate,
+    containers,
+    defaultValues.baseVersion,
+    defaultValues.bookingId,
+    onDraftChange,
+    portOfDischarge,
+    specialInstructions,
+    voyageId,
+  ]);
 
   // Primitive key — avoid depending on the containers array reference from useWatch,
   // which changes after trigger() and would infinite-loop revalidation effects.
@@ -199,13 +225,9 @@ function AmendmentForm({
     debouncedVoyageQuery,
   ]);
 
-  const selectedVoyage = useMemo(() => {
-    if (!voyageId) return undefined;
-    return (
-      voyages.find((voyage) => voyage.id === voyageId) ??
-      voyagesByIdRef.current.get(voyageId)
-    );
-  }, [voyageId, voyages]);
+  const selectedVoyage = voyageId
+    ? voyages.find((voyage) => voyage.id === voyageId)
+    : undefined;
 
   const usedEquipment = new Set(fields.map((field) => field.equipmentType));
   const nextEquipment =

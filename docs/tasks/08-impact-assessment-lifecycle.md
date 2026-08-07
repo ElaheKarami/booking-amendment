@@ -21,6 +21,6 @@
 
 ## Acceptance Criteria
 
-- [ ] Submission is disabled before assessment, while calculating, after failure, and while stale.
-- [ ] An outdated response cannot replace the current assessment.
-- [ ] Recalculate sends the current draft and produces a valid assessment version.
+- [x] Submission is disabled before assessment, while calculating, after failure, and while stale.
+- [x] An outdated response cannot replace the current assessment.
+- [x] Recalculate sends the current draft and produces a valid assessment version.
