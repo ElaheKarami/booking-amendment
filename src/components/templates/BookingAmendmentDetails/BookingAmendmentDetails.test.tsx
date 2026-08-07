@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import BookingAmendmentDetails from "./BookingAmendmentDetails";
 import AuthProvider from "@/providers/AuthProvider";
 import { useBooking } from "@/hooks";
 import { ApiError } from "@/services/errorHandling";
 
 jest.mock("@/hooks", () => ({
+  ...jest.requireActual("@/hooks"),
   useBooking: jest.fn(),
   useVoyages: jest.fn(() => ({
     data: [
@@ -50,18 +52,21 @@ const sampleBooking: Booking = {
   specialInstructions: "Keep dry.",
 };
 
-function renderDetails() {
+function renderDetails(onBack = jest.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider user={opsUser}>
-        <BookingAmendmentDetails bookingId="booking-001" onBack={jest.fn()} />
-      </AuthProvider>
-    </QueryClientProvider>,
-  );
+  return {
+    onBack,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider user={opsUser}>
+          <BookingAmendmentDetails bookingId="booking-001" onBack={onBack} />
+        </AuthProvider>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 describe("BookingAmendmentDetails", () => {
@@ -148,6 +153,116 @@ describe("BookingAmendmentDetails", () => {
     expect(screen.getByText("Unable to load booking")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Try again" }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves without a warning when the draft is clean", async () => {
+    const user = userEvent.setup();
+    mockUseBooking.mockReturnValue({
+      data: sampleBooking,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof useBooking>);
+
+    const { onBack } = renderDetails();
+
+    await user.click(
+      screen.getByRole("button", { name: "← Back to workspace" }),
+    );
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("confirms before leaving a dirty draft and keeps it on cancel", async () => {
+    const user = userEvent.setup();
+    mockUseBooking.mockReturnValue({
+      data: sampleBooking,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof useBooking>);
+
+    const { onBack } = renderDetails();
+
+    const instructions = screen.getByLabelText(
+      "Special handling instructions",
+    );
+    await user.clear(instructions);
+    await user.type(instructions, "Keep dry and upright.");
+
+    await user.click(
+      screen.getByRole("button", { name: "← Back to workspace" }),
+    );
+
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(instructions).toHaveValue("Keep dry and upright.");
+  });
+
+  it("discards and leaves after confirmation when dirty", async () => {
+    const user = userEvent.setup();
+    mockUseBooking.mockReturnValue({
+      data: sampleBooking,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof useBooking>);
+
+    const { onBack } = renderDetails();
+
+    const instructions = screen.getByLabelText(
+      "Special handling instructions",
+    );
+    await user.clear(instructions);
+    await user.type(instructions, "Keep dry and upright.");
+
+    await user.click(
+      screen.getByRole("button", { name: "← Back to workspace" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirms before resetting a dirty draft", async () => {
+    const user = userEvent.setup();
+    mockUseBooking.mockReturnValue({
+      data: sampleBooking,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof useBooking>);
+
+    renderDetails();
+
+    const instructions = screen.getByLabelText(
+      "Special handling instructions",
+    );
+    await user.clear(instructions);
+    await user.type(instructions, "Keep dry and upright.");
+
+    await user.click(screen.getByRole("button", { name: "Reset to original" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(instructions).toHaveValue("Keep dry and upright.");
+
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(instructions).toHaveValue("Keep dry.");
+    expect(
+      screen.getByText("No unsaved amendment changes"),
     ).toBeInTheDocument();
   });
 });

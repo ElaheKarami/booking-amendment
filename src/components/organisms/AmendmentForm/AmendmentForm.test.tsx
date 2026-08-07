@@ -37,7 +37,12 @@ const defaultValues: BookingAmendmentFormValues = {
   specialInstructions: "Keep dry.",
 };
 
-function renderForm() {
+function renderForm(
+  props?: Partial<{
+    onDirtyChange: (isDirty: boolean) => void;
+    requestDiscard: (onConfirm: () => void) => void;
+  }>,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -48,6 +53,8 @@ function renderForm() {
         defaultValues={defaultValues}
         portOfLoading="CNSHA"
         currentVoyageLabel="MV Atlantic Horizon · AH026W"
+        requestDiscard={props?.requestDiscard ?? ((onConfirm) => onConfirm())}
+        onDirtyChange={props?.onDirtyChange}
       />
     </QueryClientProvider>,
   );
@@ -83,7 +90,8 @@ describe("AmendmentForm", () => {
 
   it("marks the draft dirty after a meaningful edit and resets", async () => {
     const user = userEvent.setup();
-    renderForm();
+    const onDirtyChange = jest.fn();
+    renderForm({ onDirtyChange });
 
     expect(
       screen.getByText("No unsaved amendment changes"),
@@ -98,6 +106,7 @@ describe("AmendmentForm", () => {
     expect(
       screen.getByText("Unsaved changes in the amendment draft"),
     ).toBeInTheDocument();
+    expect(onDirtyChange).toHaveBeenCalledWith(true);
 
     await user.click(screen.getByRole("button", { name: "Reset to original" }));
 
@@ -105,5 +114,23 @@ describe("AmendmentForm", () => {
       screen.getByText("No unsaved amendment changes"),
     ).toBeInTheDocument();
     expect(instructions).toHaveValue("Keep dry.");
+    expect(onDirtyChange).toHaveBeenCalledWith(false);
+  });
+
+  it("asks requestDiscard before resetting", async () => {
+    const user = userEvent.setup();
+    const requestDiscard = jest.fn();
+    renderForm({ requestDiscard });
+
+    const instructions = screen.getByLabelText(
+      "Special handling instructions",
+    );
+    await user.clear(instructions);
+    await user.type(instructions, "Keep dry and upright.");
+
+    await user.click(screen.getByRole("button", { name: "Reset to original" }));
+
+    expect(requestDiscard).toHaveBeenCalledTimes(1);
+    expect(instructions).toHaveValue("Keep dry and upright.");
   });
 });

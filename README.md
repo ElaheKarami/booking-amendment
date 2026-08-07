@@ -195,6 +195,21 @@ Version conflicts return the documented body:
 The error normalizer maps that shape (and typed `ApplicationError` payloads) into
 application state for hooks and UI.
 
+## Unsaved changes and browser navigation
+
+In-app leave actions (back to workspace, form reset, and later conflict
+“load latest booking”) use a confirmation dialog when the amendment draft is
+dirty. Refresh and tab close rely on the browser `beforeunload` event.
+
+Browser limitations to be aware of:
+
+- Custom dialog copy is not shown for `beforeunload`; browsers control the prompt
+  text and may suppress it unless the user has interacted with the page.
+- Not every navigation path is interceptable (for example some browser chrome
+  actions, crashes, or OS-level kills).
+- App Router soft-navigation blockers are not used yet; leave protection today
+  covers the workspace’s local back navigation and explicit discard actions.
+
 ## Source structure
 
 ```text

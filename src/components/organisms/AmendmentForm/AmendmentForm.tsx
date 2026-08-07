@@ -35,6 +35,8 @@ export interface AmendmentFormProps {
   portOfLoading: string;
   currentVoyageLabel: string;
   disabled?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
+  requestDiscard: (onConfirm: () => void) => void;
 }
 
 function AmendmentForm({
@@ -42,6 +44,8 @@ function AmendmentForm({
   portOfLoading,
   currentVoyageLabel,
   disabled = false,
+  onDirtyChange,
+  requestDiscard,
 }: AmendmentFormProps) {
   const voyagesByIdRef = useRef(new Map<string, VoyageOption>());
   const [voyageQuery, setVoyageQuery] = useState("");
@@ -165,6 +169,10 @@ function AmendmentForm({
 
   const instructionsLength = specialInstructions?.length ?? 0;
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
   return (
     <form className="mt-5 flex flex-col gap-4" noValidate>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -178,7 +186,7 @@ function AmendmentForm({
           variant="secondary"
           size="sm"
           disabled={disabled || !isDirty}
-          onClick={() => reset(defaultValues)}
+          onClick={() => requestDiscard(() => reset(defaultValues))}
         >
           Reset to original
         </Button>

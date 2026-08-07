@@ -4,21 +4,22 @@ import { useState } from "react";
 import { Button, Card } from "@/components/atoms";
 import { PermissionGate } from "@/components/molecules";
 import AmendmentForm from "../AmendmentForm/AmendmentForm";
-import BookingHeader from "../BookingHeader/BookingHeader";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
 
 export interface BookingAmendmentWorkspaceProps {
   booking: Booking;
   canEdit: boolean;
   canSubmit: boolean;
-  onBack: () => void;
+  onDirtyChange?: (isDirty: boolean) => void;
+  requestDiscard: (onConfirm: () => void) => void;
 }
 
 function BookingAmendmentWorkspace({
   booking,
   canEdit,
   canSubmit,
-  onBack,
+  onDirtyChange,
+  requestDiscard,
 }: BookingAmendmentWorkspaceProps) {
   const [draft] = useState(() => bookingAmendmentDraftFromBooking(booking));
 
@@ -46,6 +47,8 @@ function BookingAmendmentWorkspace({
               portOfLoading={booking.portOfLoading}
               currentVoyageLabel={`${booking.vesselName} · ${booking.voyageNumber}`}
               disabled={!canEdit}
+              onDirtyChange={onDirtyChange}
+              requestDiscard={requestDiscard}
             />
           </PermissionGate>
         </Card>

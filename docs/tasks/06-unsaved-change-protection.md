@@ -18,6 +18,6 @@
 
 ## Acceptance Criteria
 
-- [ ] Each of the five required leave/reset scenarios is protected when dirty.
-- [ ] No warning appears when there is no meaningful change.
-- [ ] Browser-level limitations are recorded for the README task.
+- [x] Each of the five required leave/reset scenarios is protected when dirty.
+- [x] No warning appears when there is no meaningful change.
+- [x] Browser-level limitations are recorded for the README task.

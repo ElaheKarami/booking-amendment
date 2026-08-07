@@ -1,14 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/atoms";
-import { EmptyState } from "@/components/molecules";
+import { EmptyState, Modal } from "@/components/molecules";
 import {
   BookingHeader,
   BookingAmendmentWorkspace,
 } from "@/components/organisms";
 import { BookingWorkspaceSkeleton } from "@/components/skeletons";
 import { DEFAULT_BOOKING_ID } from "@/constants";
-import { useBooking } from "@/hooks";
+import { useBooking, useUnsavedChangesProtection } from "@/hooks";
 import { useAuth } from "@/providers";
 import { ApiError } from "@/services/errorHandling";
 
@@ -31,6 +32,11 @@ function BookingAmendmentDetails({
     error,
     refetch,
   } = useBooking(bookingId);
+  const [isDirty, setIsDirty] = useState(false);
+  const { isConfirmOpen, requestDiscard, confirmDiscard, cancelDiscard } =
+    useUnsavedChangesProtection(isDirty);
+
+  const handleBack = () => requestDiscard(onBack);
 
   if (isLoading) {
     return <BookingWorkspaceSkeleton />;
@@ -80,13 +86,36 @@ function BookingAmendmentDetails({
 
   return (
     <>
-      <BookingHeader booking={booking} canEdit={canEdit} onBack={onBack} />
+      <BookingHeader booking={booking} canEdit={canEdit} onBack={handleBack} />
       <BookingAmendmentWorkspace
         booking={booking}
         canEdit={canEdit}
         canSubmit={canSubmit}
-        onBack={onBack}
+        onDirtyChange={setIsDirty}
+        requestDiscard={requestDiscard}
       />
+      <Modal
+        open={isConfirmOpen}
+        onClose={cancelDiscard}
+        title="Discard unsaved changes?"
+        size="sm"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={cancelDiscard}>
+              Keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="primary-emphasis"
+              onClick={confirmDiscard}
+            >
+              Discard changes
+            </Button>
+          </>
+        }
+      >
+        You have unsaved amendment changes. Discard them to continue?
+      </Modal>
     </>
   );
 }
