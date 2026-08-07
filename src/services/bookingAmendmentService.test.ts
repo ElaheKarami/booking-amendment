@@ -1,5 +1,5 @@
 import { apiRequestObject } from "@/services/apiRequestObject";
-import { getBooking } from "./bookingAmendmentService";
+import { getBooking, submitAmendment } from "./bookingAmendmentService";
 
 jest.mock("@/services/apiRequestObject", () => ({
   REQUEST_TYPE: { GET: "get", POST: "post" },
@@ -9,6 +9,10 @@ jest.mock("@/services/apiRequestObject", () => ({
 const mockApiRequestObject = jest.mocked(apiRequestObject);
 
 describe("bookingAmendmentService", () => {
+  beforeEach(() => {
+    mockApiRequestObject.mockReset();
+  });
+
   it("gets a booking through the shared API request layer", async () => {
     const booking: Booking = {
       id: "booking-001",
@@ -38,6 +42,44 @@ describe("bookingAmendmentService", () => {
     expect(mockApiRequestObject).toHaveBeenCalledWith(
       expect.objectContaining({
         url: "/bookings/booking-001?scenario=slow",
+        transformer: expect.any(Function),
+      }),
+    );
+  });
+
+  it("submits an amendment with the full command through transformers", async () => {
+    const command: SubmitAmendmentCommand = {
+      bookingId: "booking-001",
+      baseVersion: 7,
+      assessmentVersion: "assessment-7-voyage-001",
+      amendment: {
+        bookingId: "booking-001",
+        baseVersion: 7,
+        portOfDischarge: "NLRTM",
+        voyageId: "voyage-001",
+        cargoReadinessDate: "2026-08-18",
+        containers: [{ equipmentType: "20GP", quantity: 2 }],
+      },
+      idempotencyKey: "idempotency-test-key",
+    };
+    const submission: AmendmentSubmission = {
+      id: "submission-001",
+      status: "submitted",
+      idempotencyKey: "idempotency-test-key",
+      alreadyProcessed: false,
+    };
+    mockApiRequestObject.mockResolvedValueOnce({
+      success: true,
+      data: submission,
+    });
+
+    await expect(submitAmendment(command)).resolves.toEqual(submission);
+    expect(mockApiRequestObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/bookings/booking-001/amendments",
+        type: "post",
+        body: command,
+        inputTransformer: expect.any(Function),
         transformer: expect.any(Function),
       }),
     );

@@ -9,13 +9,7 @@ import {
   type Resolver,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Badge,
-  Button,
-  Select,
-  TextArea,
-  TextField,
-} from "@/components/atoms";
+import { Badge, Button, Select, TextArea, TextField } from "@/components/atoms";
 import { DatePicker, SearchSelect } from "@/components/molecules";
 import {
   DISCHARGE_PORT_OPTIONS,
@@ -65,9 +59,7 @@ function AmendmentForm({
   const resolver = useCallback<Resolver<BookingAmendmentFormValues>>(
     async (values, context, options) =>
       zodResolver(
-        createBookingAmendmentSchema([
-          ...voyagesByIdRef.current.values(),
-        ]),
+        createBookingAmendmentSchema([...voyagesByIdRef.current.values()]),
       )(values, context, options),
     [],
   );
@@ -126,9 +118,7 @@ function AmendmentForm({
   // which changes after trigger() and would infinite-loop revalidation effects.
   const containerEquipmentKey = useMemo(
     () =>
-      (containers ?? [])
-        .map((container) => container.equipmentType)
-        .join("|"),
+      (containers ?? []).map((container) => container.equipmentType).join("|"),
     [containers],
   );
 
@@ -139,12 +129,7 @@ function AmendmentForm({
       readinessDate: cargoReadinessDate ?? "",
       search: debouncedVoyageQuery,
     }),
-    [
-      portOfLoading,
-      portOfDischarge,
-      cargoReadinessDate,
-      debouncedVoyageQuery,
-    ],
+    [portOfLoading, portOfDischarge, cargoReadinessDate, debouncedVoyageQuery],
   );
 
   const {
@@ -210,9 +195,7 @@ function AmendmentForm({
       options.unshift({
         value: voyageId,
         label:
-          voyageId === defaultValues.voyageId
-            ? currentVoyageLabel
-            : voyageId,
+          voyageId === defaultValues.voyageId ? currentVoyageLabel : voyageId,
       });
     }
 
@@ -231,9 +214,8 @@ function AmendmentForm({
 
   const usedEquipment = new Set(fields.map((field) => field.equipmentType));
   const nextEquipment =
-    EQUIPMENT_TYPE_OPTIONS.find(
-      (option) => !usedEquipment.has(option.value),
-    )?.value ?? "20GP";
+    EQUIPMENT_TYPE_OPTIONS.find((option) => !usedEquipment.has(option.value))
+      ?.value ?? "20GP";
 
   const instructionsLength = specialInstructions?.length ?? 0;
 
@@ -361,7 +343,7 @@ function AmendmentForm({
           {fields.map((field, index) => (
             <div
               key={field.id}
-              className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+              className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start"
             >
               <Select
                 id={`container-equipment-${index}`}
@@ -389,7 +371,7 @@ function AmendmentForm({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="mb-0.5"
+                className="mb-0.5 sm:mt-5"
                 disabled={disabled || fields.length <= 1}
                 onClick={() => remove(index)}
               >

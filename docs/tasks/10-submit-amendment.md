@@ -20,7 +20,7 @@
 
 ## Acceptance Criteria
 
-- [ ] Submission carries booking ID, base version, assessment version, amendment, and idempotency key.
-- [ ] A disabled button is not the only idempotency control.
-- [ ] Submission has no naive optimistic update.
-- [ ] Rejected submissions preserve the draft.
+- [x] Submission carries booking ID, base version, assessment version, amendment, and idempotency key.
+- [x] A disabled button is not the only idempotency control.
+- [x] Submission has no naive optimistic update.
+- [x] Rejected submissions preserve the draft.

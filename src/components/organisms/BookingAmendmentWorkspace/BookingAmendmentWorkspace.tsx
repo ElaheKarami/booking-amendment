@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Card } from "@/components/atoms";
 import { PermissionGate } from "@/components/molecules";
 import AmendmentForm from "../AmendmentForm/AmendmentForm";
 import ImpactAssessmentPanel from "../ImpactAssessmentPanel/ImpactAssessmentPanel";
-import { useImpactAssessment } from "@/hooks";
+import { useImpactAssessment, useSubmitAmendment } from "@/hooks";
 import type { BookingAmendmentFormValues } from "@/schemas/bookingAmendmentSchema";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
 
@@ -45,6 +45,47 @@ function assessmentFeedback(
   }
 }
 
+function submissionFeedback(
+  status: ReturnType<typeof useSubmitAmendment>["status"],
+  submission: AmendmentSubmission | null,
+  errorMessage: string | undefined,
+  idempotencyKey: string | null,
+): { tone: "info" | "warning" | "error" | "success"; label: string } | null {
+  switch (status) {
+    case "submitting":
+      return { tone: "info", label: "Submitting amendment…" };
+    case "succeeded":
+      return {
+        tone: "success",
+        label: submission?.id
+          ? `Amendment accepted · ${submission.id}`
+          : "Amendment accepted",
+      };
+    case "rejected":
+      return {
+        tone: "error",
+        label: errorMessage ?? "Amendment rejected. The draft was preserved.",
+      };
+    case "conflict":
+      return {
+        tone: "warning",
+        label:
+          errorMessage ??
+          "Booking changed by another user. Draft preserved — recalculate before retrying.",
+      };
+    case "unknown":
+      return {
+        tone: "warning",
+        label: idempotencyKey
+          ? `Submission status unknown · reference ${idempotencyKey}`
+          : "Submission status unknown. Do not assume failure.",
+      };
+    case "idle":
+    default:
+      return null;
+  }
+}
+
 function BookingAmendmentWorkspace({
   booking,
   canEdit,
@@ -56,6 +97,9 @@ function BookingAmendmentWorkspace({
     bookingAmendmentDraftFromBooking(booking),
   );
   const [draft, setDraft] = useState<BookingAmendmentDraft>(initialDraft);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
   const {
     status,
     impact,
@@ -65,6 +109,27 @@ function BookingAmendmentWorkspace({
     syncDraft,
     recalculate,
   } = useImpactAssessment();
+  const {
+    status: submissionStatus,
+    submission,
+    error: submissionError,
+    idempotencyKey,
+    isSubmitting,
+    submit,
+  } = useSubmitAmendment();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const handleDraftChange = useCallback(
     (next: BookingAmendmentFormValues) => {
@@ -78,11 +143,30 @@ function BookingAmendmentWorkspace({
     void recalculate(draft);
   }, [draft, recalculate]);
 
+  const handleSubmit = useCallback(() => {
+    if (!impact?.assessmentVersion) return;
+    void submit({
+      draft,
+      assessmentVersion: impact.assessmentVersion,
+    });
+  }, [draft, impact, submit]);
+
   const feedback = assessmentFeedback(
     status,
     error?.reasons[0] ?? error?.message,
   );
-  const submitEnabled = canSubmit && canSubmitAssessment;
+  const resultFeedback = submissionFeedback(
+    submissionStatus,
+    submission,
+    submissionError?.reasons[0] ?? submissionError?.message,
+    idempotencyKey,
+  );
+  const submitEnabled =
+    canSubmit &&
+    canSubmitAssessment &&
+    isOnline &&
+    !isSubmitting &&
+    submissionStatus !== "succeeded";
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,7 +191,7 @@ function BookingAmendmentWorkspace({
               defaultValues={initialDraft}
               portOfLoading={booking.portOfLoading}
               currentVoyageLabel={`${booking.vesselName} · ${booking.voyageNumber}`}
-              disabled={!canEdit}
+              disabled={!canEdit || isSubmitting}
               onDirtyChange={onDirtyChange}
               onDraftChange={handleDraftChange}
               requestDiscard={requestDiscard}
@@ -137,11 +221,23 @@ function BookingAmendmentWorkspace({
         padded={false}
         className="flex flex-wrap items-center justify-between gap-3 border-border px-6 py-4"
       >
-        <p className="text-body-sm text-text-2">
-          {canEdit
-            ? "Unsaved changes are kept in the workspace until you submit."
-            : "Toolbar actions follow your assigned roles."}
-        </p>
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="text-body-sm text-text-2">
+            {canEdit
+              ? "Unsaved changes are kept in the workspace until you submit."
+              : "Toolbar actions follow your assigned roles."}
+          </p>
+          {!isOnline && (
+            <Badge tone="warning" aria-live="polite">
+              Offline — reconnect before submitting
+            </Badge>
+          )}
+          {resultFeedback && (
+            <Badge tone={resultFeedback.tone} aria-live="polite">
+              {resultFeedback.label}
+            </Badge>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <PermissionGate
             permission="editAmendment"
@@ -154,7 +250,7 @@ function BookingAmendmentWorkspace({
             <Button
               type="button"
               variant="secondary"
-              disabled={!canEdit || isCalculating}
+              disabled={!canEdit || isCalculating || isSubmitting}
               isLoading={isCalculating}
               onClick={handleRecalculate}
             >
@@ -169,7 +265,13 @@ function BookingAmendmentWorkspace({
               </Button>
             }
           >
-            <Button type="button" variant="primary" disabled={!submitEnabled}>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!submitEnabled}
+              isLoading={isSubmitting}
+              onClick={handleSubmit}
+            >
               Submit amendment
             </Button>
           </PermissionGate>

@@ -1,0 +1,172 @@
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { submitAmendment } from "@/services/bookingAmendmentService";
+import {
+  ApiError,
+  normalizeApiError,
+  showErrorMessage,
+  showSuccessMessage,
+  showWarningMessage,
+} from "@/services/errorHandling";
+
+export type SubmissionLifecycleStatus =
+  | "idle"
+  | "submitting"
+  | "succeeded"
+  | "rejected"
+  | "conflict"
+  | "unknown";
+
+export type SubmitAmendmentInput = {
+  draft: BookingAmendmentDraft;
+  assessmentVersion: string;
+};
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `idempotency-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function classifySubmissionError(
+  error: ApiError,
+): Exclude<SubmissionLifecycleStatus, "idle" | "submitting" | "succeeded"> {
+  const type = error.applicationError.type;
+
+  if (type === "conflict") {
+    return "conflict";
+  }
+
+  if (type === "unknown" || type === "network") {
+    return "unknown";
+  }
+
+  return "rejected";
+}
+
+function notifySubmissionOutcome(
+  status: Exclude<SubmissionLifecycleStatus, "idle" | "submitting">,
+  submission: AmendmentSubmission | null,
+  error: ApiError | null,
+  idempotencyKey: string,
+): void {
+  switch (status) {
+    case "succeeded":
+      showSuccessMessage(
+        submission?.id
+          ? `Amendment accepted · ${submission.id}`
+          : "Amendment accepted",
+      );
+      return;
+    case "rejected":
+      showErrorMessage(
+        error?.reasons[0] ??
+          error?.message ??
+          "Amendment rejected. The draft was preserved.",
+        { forceShow: true },
+      );
+      return;
+    case "conflict":
+      showWarningMessage(
+        error?.reasons[0] ??
+          error?.message ??
+          "Booking changed by another user. Draft preserved — recalculate before retrying.",
+      );
+      return;
+    case "unknown":
+      showWarningMessage(
+        `Submission status unknown · reference ${idempotencyKey}`,
+      );
+      return;
+  }
+}
+
+export function useSubmitAmendment() {
+  const [status, setStatus] = useState<SubmissionLifecycleStatus>("idle");
+  const [submission, setSubmission] = useState<AmendmentSubmission | null>(
+    null,
+  );
+  const [error, setError] = useState<ApiError | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const inFlightRef = useRef(false);
+
+  const { mutateAsync } = useMutation({
+    mutationFn: (command: SubmitAmendmentCommand) => submitAmendment(command),
+  });
+
+  const submit = useCallback(
+    async ({ draft, assessmentVersion }: SubmitAmendmentInput) => {
+      if (inFlightRef.current) {
+        return;
+      }
+
+      const reuseKey =
+        status === "unknown" && Boolean(idempotencyKeyRef.current);
+      const nextKey = reuseKey
+        ? (idempotencyKeyRef.current as string)
+        : createIdempotencyKey();
+
+      idempotencyKeyRef.current = nextKey;
+      inFlightRef.current = true;
+      setIdempotencyKey(nextKey);
+      setStatus("submitting");
+      setError(null);
+      setSubmission(null);
+
+      const command: SubmitAmendmentCommand = {
+        bookingId: draft.bookingId,
+        baseVersion: draft.baseVersion,
+        assessmentVersion,
+        amendment: draft,
+        idempotencyKey: nextKey,
+      };
+
+      try {
+        const result = await mutateAsync(command);
+
+        if (result.status === "rejected") {
+          const rejectionError = new ApiError(
+            "The amendment was rejected.",
+            422,
+            ["The amendment was rejected."],
+          );
+          setSubmission(result);
+          setStatus("rejected");
+          setError(rejectionError);
+          notifySubmissionOutcome("rejected", result, rejectionError, nextKey);
+          return;
+        }
+
+        setSubmission(result);
+        setStatus("succeeded");
+        setError(null);
+        notifySubmissionOutcome("succeeded", result, null, nextKey);
+      } catch (caught) {
+        const normalized = normalizeApiError(caught);
+        const nextStatus = classifySubmissionError(normalized);
+        setError(normalized);
+        setSubmission(null);
+        setStatus(nextStatus);
+        notifySubmissionOutcome(nextStatus, null, normalized, nextKey);
+      } finally {
+        inFlightRef.current = false;
+      }
+    },
+    [mutateAsync, status],
+  );
+
+  return {
+    status,
+    submission,
+    error,
+    idempotencyKey,
+    isSubmitting: status === "submitting",
+    submit,
+  };
+}

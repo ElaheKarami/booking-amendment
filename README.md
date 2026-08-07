@@ -195,6 +195,44 @@ Version conflicts return the documented body:
 The error normalizer maps that shape (and typed `ApplicationError` payloads) into
 application state for hooks and UI.
 
+## Submission idempotency
+
+Amendment submit can be interrupted after the request leaves the browser:
+double-clicks, retries, slow networks, and timeouts. Disabling the Submit button
+reduces accidental duplicate clicks, but it is **not** enough — a request may
+already be in flight or already accepted on the server while the UI still shows
+an unknown result.
+
+### Why we need an idempotency key
+
+Each submit command includes an `idempotencyKey`. The backend treats that key as
+“this is the same submission attempt.” If the same key arrives again, the server
+returns the original outcome instead of creating a second amendment. That is how
+the system stays safe when the client cannot tell whether the first request
+succeeded.
+
+### How the frontend handles it
+
+`useSubmitAmendment` owns the key lifecycle:
+
+1. **New attempt** — from idle, after a clear rejection, or after a version
+   conflict — generate a new key with `crypto.randomUUID()` (with a fallback) and
+   send it on `POST /api/bookings/:id/amendments` together with booking ID, base
+   version, assessment version, and the draft.
+2. **In flight** — ignore further submit calls while a request is outstanding
+   (`inFlightRef`), in addition to disabling the button.
+3. **Unknown result** — if the request was sent but the result is unclear
+   (timeout / ambiguous response), keep the same key and reuse it on a safe
+   retry. A **new** key here would look like a second command and could create a
+   duplicate if the first request had already succeeded.
+4. **No optimistic update** — the UI waits for the server response; the draft is
+   preserved on rejection, conflict, and unknown outcomes.
+
+The mock API stores submissions by key and supports a `duplicate` scenario so the
+same key returns `alreadyProcessed: true`. Detailed conflict recovery and
+status-check UX for unknown results continue in later tasks; the key reuse rule
+above is the client’s safe-retry contract.
+
 ## Unsaved changes and browser navigation
 
 In-app leave actions (back to workspace, form reset, and later conflict

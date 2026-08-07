@@ -1,13 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AuthProvider from "@/providers/AuthProvider";
-import { assessAmendment } from "@/services/bookingAmendmentService";
+import {
+  assessAmendment,
+  submitAmendment,
+} from "@/services/bookingAmendmentService";
 import { ApiError } from "@/services/errorHandling";
 import BookingAmendmentWorkspace from "./BookingAmendmentWorkspace";
 
 jest.mock("@/services/bookingAmendmentService", () => ({
   assessAmendment: jest.fn(),
+  submitAmendment: jest.fn(),
   getVoyages: jest.fn().mockResolvedValue([
     {
       id: "voyage-001",
@@ -23,6 +27,7 @@ jest.mock("@/services/bookingAmendmentService", () => ({
 }));
 
 const mockAssessAmendment = jest.mocked(assessAmendment);
+const mockSubmitAmendment = jest.mocked(submitAmendment);
 
 const opsUser: CurrentUser = {
   id: "ops-1",
@@ -108,9 +113,33 @@ function renderWorkspace() {
   );
 }
 
+function setNavigatorOnline(isOnline: boolean) {
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    get: () => isOnline,
+  });
+}
+
+async function recalculateToValid(user: ReturnType<typeof userEvent.setup>) {
+  mockAssessAmendment.mockResolvedValueOnce(impact);
+  await user.click(screen.getByRole("button", { name: "Recalculate" }));
+  await waitFor(() => {
+    expect(
+      screen.getByText("Assessment matches the current draft"),
+    ).toBeInTheDocument();
+  });
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeEnabled();
+  });
+}
+
 describe("BookingAmendmentWorkspace", () => {
   beforeEach(() => {
     mockAssessAmendment.mockReset();
+    mockSubmitAmendment.mockReset();
+    setNavigatorOnline(true);
   });
 
   it("disables submit before assessment", () => {
@@ -258,5 +287,166 @@ describe("BookingAmendmentWorkspace", () => {
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeDisabled();
+  });
+
+  it("disables submit while offline", async () => {
+    const user = userEvent.setup();
+
+    renderWorkspace();
+    await recalculateToValid(user);
+
+    setNavigatorOnline(false);
+    await act(async () => {
+      window.dispatchEvent(new Event("offline"));
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Offline — reconnect before submitting"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeDisabled();
+
+    setNavigatorOnline(true);
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+  });
+
+  it("submits the command and shows the accepted amendment id", async () => {
+    const user = userEvent.setup();
+    mockSubmitAmendment.mockResolvedValueOnce({
+      id: "submission-001",
+      status: "submitted",
+      idempotencyKey: "key-1",
+      alreadyProcessed: false,
+    });
+
+    renderWorkspace();
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Amendment accepted · submission-001"),
+      ).toBeInTheDocument();
+    });
+
+    expect(mockSubmitAmendment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: "booking-001",
+        baseVersion: 7,
+        assessmentVersion: "assessment-7-voyage-001",
+        amendment: expect.objectContaining({
+          voyageId: "voyage-001",
+          bookingId: "booking-001",
+        }),
+        idempotencyKey: expect.any(String),
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByLabelText("Special handling instructions"),
+    ).toHaveValue("Keep dry.");
+  });
+
+  it("shows rejection feedback and preserves the draft", async () => {
+    const user = userEvent.setup();
+    mockSubmitAmendment.mockRejectedValueOnce(
+      new ApiError(
+        "Cargo readiness is no longer valid.",
+        422,
+        ["Cargo readiness is no longer valid."],
+        {
+          type: "validation",
+          fields: {
+            cargoReadinessDate: ["Cargo readiness is no longer valid."],
+          },
+        },
+      ),
+    );
+
+    renderWorkspace();
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Cargo readiness is no longer valid."),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByLabelText("Special handling instructions"),
+    ).toHaveValue("Keep dry.");
+  });
+
+  it("shows conflict feedback without clearing the draft", async () => {
+    const user = userEvent.setup();
+    mockSubmitAmendment.mockRejectedValueOnce(
+      new ApiError(
+        "The booking was modified by another user.",
+        409,
+        ["The booking was modified by another user."],
+        { type: "conflict", currentVersion: 8 },
+      ),
+    );
+
+    renderWorkspace();
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("The booking was modified by another user."),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByLabelText("Special handling instructions"),
+    ).toHaveValue("Keep dry.");
+  });
+
+  it("prevents duplicate clicks while submitting and shows loading", async () => {
+    const user = userEvent.setup();
+    let resolveSubmit: ((value: AmendmentSubmission) => void) | undefined;
+    mockSubmitAmendment.mockImplementationOnce(
+      () =>
+        new Promise<AmendmentSubmission>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+
+    renderWorkspace();
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    expect(screen.getByText("Submitting amendment…")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeDisabled();
+    expect(mockSubmitAmendment).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+    expect(mockSubmitAmendment).toHaveBeenCalledTimes(1);
+
+    resolveSubmit?.({
+      id: "submission-001",
+      status: "submitted",
+      idempotencyKey: "key-1",
+      alreadyProcessed: false,
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Amendment accepted · submission-001"),
+      ).toBeInTheDocument();
+    });
   });
 });
