@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { TELEMETRY_EVENTS } from "@/constants";
+import { captureError, track } from "@/lib/telemetry";
 import { assessAmendment } from "@/services";
 import { ApiError, normalizeApiError } from "@/services/errorHandling";
 import { amendmentDraftFingerprint } from "@/utils/amendmentDraftFingerprint";
@@ -15,6 +17,17 @@ type ActiveAssessmentRequest = {
   controller: AbortController;
 };
 
+function safeAssessmentContext(
+  draft: BookingAmendmentDraft,
+  extras?: TelemetryProperties,
+): TelemetryProperties {
+  return {
+    bookingId: draft.bookingId,
+    baseVersion: draft.baseVersion,
+    ...extras,
+  };
+}
+
 export function useImpactAssessment() {
   const [status, setStatus] =
     useState<AssessmentLifecycleStatus>("not-calculated");
@@ -25,6 +38,16 @@ export function useImpactAssessment() {
   const impactRef = useRef<AmendmentImpact | null>(null);
   const activeRequestRef = useRef<ActiveAssessmentRequest | null>(null);
   const requestCounterRef = useRef(0);
+  const lastDraftFingerprintRef = useRef<string | null>(null);
+  const statusRef = useRef<AssessmentLifecycleStatus>("not-calculated");
+
+  const setAssessmentStatus = useCallback(
+    (next: AssessmentLifecycleStatus) => {
+      statusRef.current = next;
+      setStatus(next);
+    },
+    [],
+  );
 
   const { mutateAsync } = useMutation({
     mutationFn: ({
@@ -43,14 +66,38 @@ export function useImpactAssessment() {
     activeRequestRef.current = null;
   }, []);
 
+  const emitStaleIfNeeded = useCallback(
+    (context?: TelemetryProperties) => {
+      if (statusRef.current === "stale") return;
+      track(TELEMETRY_EVENTS.ASSESSMENT_BECAME_STALE, {
+        status: "stale",
+        ...context,
+      });
+    },
+    [],
+  );
+
   const syncDraft = useCallback(
     (draft: BookingAmendmentDraft) => {
       const fingerprint = amendmentDraftFingerprint(draft);
+      const previousFingerprint = lastDraftFingerprintRef.current;
+
+      if (
+        previousFingerprint !== null &&
+        previousFingerprint !== fingerprint
+      ) {
+        track(
+          TELEMETRY_EVENTS.BOOKING_AMENDMENT_CHANGED,
+          safeAssessmentContext(draft),
+        );
+      }
+      lastDraftFingerprintRef.current = fingerprint;
+
       const assessedFingerprint = assessedFingerprintRef.current;
 
       if (assessedFingerprint === fingerprint) {
         if (impactRef.current) {
-          setStatus("valid");
+          setAssessmentStatus("valid");
           setError(null);
         }
         return;
@@ -61,15 +108,20 @@ export function useImpactAssessment() {
       }
 
       if (!assessedFingerprint) {
-        setStatus("not-calculated");
+        setAssessmentStatus("not-calculated");
         setError(null);
         return;
       }
 
-      setStatus(impactRef.current ? "stale" : "not-calculated");
+      if (impactRef.current) {
+        emitStaleIfNeeded(safeAssessmentContext(draft));
+        setAssessmentStatus("stale");
+      } else {
+        setAssessmentStatus("not-calculated");
+      }
       setError(null);
     },
-    [abortActiveRequest],
+    [abortActiveRequest, emitStaleIfNeeded, setAssessmentStatus],
   );
 
   const markStale = useCallback(() => {
@@ -79,7 +131,7 @@ export function useImpactAssessment() {
 
     if (!impactRef.current) {
       assessedFingerprintRef.current = null;
-      setStatus("not-calculated");
+      setAssessmentStatus("not-calculated");
       setError(null);
       return;
     }
@@ -89,9 +141,10 @@ export function useImpactAssessment() {
     if (assessedFingerprintRef.current) {
       assessedFingerprintRef.current = `invalidated:${assessedFingerprintRef.current}`;
     }
-    setStatus("stale");
+    emitStaleIfNeeded();
+    setAssessmentStatus("stale");
     setError(null);
-  }, [abortActiveRequest]);
+  }, [abortActiveRequest, emitStaleIfNeeded, setAssessmentStatus]);
 
   const recalculate = useCallback(
     async (draft: BookingAmendmentDraft) => {
@@ -107,8 +160,12 @@ export function useImpactAssessment() {
         controller,
       };
 
-      setStatus("calculating");
+      setAssessmentStatus("calculating");
       setError(null);
+      track(
+        TELEMETRY_EVENTS.IMPACT_ASSESSMENT_REQUESTED,
+        safeAssessmentContext(draft, { status: "calculating" }),
+      );
 
       try {
         const result = await mutateAsync({
@@ -125,11 +182,16 @@ export function useImpactAssessment() {
         if (active.fingerprint !== fingerprint) return;
 
         assessedFingerprintRef.current = fingerprint;
+        lastDraftFingerprintRef.current = fingerprint;
         impactRef.current = result;
         setImpact(result);
-        setStatus("valid");
+        setAssessmentStatus("valid");
         setError(null);
         activeRequestRef.current = null;
+        track(
+          TELEMETRY_EVENTS.IMPACT_ASSESSMENT_SUCCEEDED,
+          safeAssessmentContext(draft, { status: "valid" }),
+        );
       } catch (caught) {
         if (controller.signal.aborted) return;
 
@@ -138,11 +200,18 @@ export function useImpactAssessment() {
 
         const normalized = normalizeApiError(caught);
         setError(normalized);
-        setStatus("failed");
+        setAssessmentStatus("failed");
         activeRequestRef.current = null;
+        const failureContext = safeAssessmentContext(draft, {
+          status: "failed",
+          httpStatus: normalized.status,
+          errorType: normalized.applicationError.type,
+        });
+        track(TELEMETRY_EVENTS.IMPACT_ASSESSMENT_FAILED, failureContext);
+        captureError(normalized, failureContext);
       }
     },
-    [abortActiveRequest, mutateAsync],
+    [abortActiveRequest, mutateAsync, setAssessmentStatus],
   );
 
   const hasBlockingValidation = Boolean(

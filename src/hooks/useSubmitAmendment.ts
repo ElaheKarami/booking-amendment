@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { TELEMETRY_EVENTS } from "@/constants";
+import { track } from "@/lib/telemetry";
 import { submitAmendment } from "@/services";
 import {
   ApiError,
@@ -84,6 +86,17 @@ function isBrowserOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
+function safeSubmissionContext(
+  draft: BookingAmendmentDraft,
+  extras?: TelemetryProperties,
+): TelemetryProperties {
+  return {
+    bookingId: draft.bookingId,
+    baseVersion: draft.baseVersion,
+    ...extras,
+  };
+}
+
 export function useSubmitAmendment() {
   const [status, setStatus] = useState<SubmissionLifecycleStatus>("idle");
   const [submission, setSubmission] = useState<AmendmentSubmission | null>(
@@ -141,6 +154,10 @@ export function useSubmitAmendment() {
       setStatus("submitting");
       setError(null);
       setSubmission(null);
+      track(
+        TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_STARTED,
+        safeSubmissionContext(draft, { status: "submitting" }),
+      );
 
       const command: SubmitAmendmentCommand = {
         bookingId: draft.bookingId,
@@ -169,6 +186,10 @@ export function useSubmitAmendment() {
           setSubmission(null);
           setStatus("unknown");
           setError(null);
+          track(
+            TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_UNKNOWN,
+            safeSubmissionContext(draft, { status: "unknown" }),
+          );
           notifySubmissionOutcome("unknown", null, null, nextKey);
           return "unknown";
         }
@@ -189,6 +210,10 @@ export function useSubmitAmendment() {
         setSubmission(result);
         setStatus("succeeded");
         setError(null);
+        track(
+          TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_SUCCEEDED,
+          safeSubmissionContext(draft, { status: "succeeded" }),
+        );
         notifySubmissionOutcome("succeeded", result, null, nextKey);
         return "succeeded";
       } catch (caught) {
@@ -196,6 +221,10 @@ export function useSubmitAmendment() {
           setSubmission(null);
           setStatus("unknown");
           setError(null);
+          track(
+            TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_UNKNOWN,
+            safeSubmissionContext(draft, { status: "unknown" }),
+          );
           notifySubmissionOutcome("unknown", null, null, nextKey);
           return "unknown";
         }
@@ -205,6 +234,27 @@ export function useSubmitAmendment() {
         setError(normalized);
         setSubmission(null);
         setStatus(nextStatus);
+
+        if (nextStatus === "conflict") {
+          track(
+            TELEMETRY_EVENTS.AMENDMENT_VERSION_CONFLICT,
+            safeSubmissionContext(draft, {
+              status: "conflict",
+              httpStatus: normalized.status,
+              errorType: normalized.applicationError.type,
+            }),
+          );
+        } else if (nextStatus === "unknown") {
+          track(
+            TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_UNKNOWN,
+            safeSubmissionContext(draft, {
+              status: "unknown",
+              httpStatus: normalized.status,
+              errorType: normalized.applicationError.type,
+            }),
+          );
+        }
+
         notifySubmissionOutcome(nextStatus, null, normalized, nextKey);
         return nextStatus;
       } finally {

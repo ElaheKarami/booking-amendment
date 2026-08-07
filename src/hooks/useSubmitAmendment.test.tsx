@@ -1,6 +1,8 @@
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { TELEMETRY_EVENTS } from "@/constants";
+import { track } from "@/lib/telemetry";
 import { submitAmendment } from "@/services/bookingAmendmentService/bookingAmendmentService";
 import {
   ApiError,
@@ -15,6 +17,11 @@ import {
 
 jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   submitAmendment: jest.fn(),
+}));
+
+jest.mock("@/lib/telemetry", () => ({
+  track: jest.fn(),
+  captureError: jest.fn(),
 }));
 
 jest.mock("@/services/errorHandling", () => {
@@ -33,6 +40,8 @@ const mockSubmitAmendment = jest.mocked(submitAmendment);
 const mockShowSuccessMessage = jest.mocked(showSuccessMessage);
 const mockShowErrorMessage = jest.mocked(showErrorMessage);
 const mockShowWarningMessage = jest.mocked(showWarningMessage);
+const mockTrack = jest.mocked(track);
+
 
 const draft: BookingAmendmentDraft = {
   bookingId: "booking-001",
@@ -67,6 +76,7 @@ describe("useSubmitAmendment", () => {
     mockShowSuccessMessage.mockReset();
     mockShowErrorMessage.mockReset();
     mockShowWarningMessage.mockReset();
+    mockTrack.mockReset();
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,
       get: () => true,
@@ -381,5 +391,99 @@ describe("useSubmitAmendment", () => {
     expect(result.current.submission).toBeNull();
     expect(result.current.error).toBeNull();
     expect(result.current.idempotencyKey).toBeNull();
+  });
+
+  it("emits submission lifecycle telemetry for started, conflict, unknown, and succeeded", async () => {
+    mockSubmitAmendment
+      .mockRejectedValueOnce(
+        new ApiError(
+          "The booking was modified by another user.",
+          409,
+          ["The booking was modified by another user."],
+          { type: "conflict", currentVersion: 8 },
+        ),
+      )
+      .mockRejectedValueOnce(
+        new ApiError(
+          "The amendment may have been submitted. Check its status.",
+          504,
+          ["The amendment may have been submitted. Check its status."],
+          {
+            type: "unknown",
+            message: "The amendment may have been submitted. Check its status.",
+          },
+        ),
+      )
+      .mockResolvedValueOnce({
+        id: "submission-001",
+        status: "submitted",
+        idempotencyKey: "retry-key",
+        alreadyProcessed: true,
+      });
+
+    const { result } = renderHook(() => useSubmitAmendment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submit({ draft, assessmentVersion });
+    });
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_STARTED,
+      expect.objectContaining({
+        bookingId: "booking-001",
+        baseVersion: 7,
+        status: "submitting",
+      }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.AMENDMENT_VERSION_CONFLICT,
+      expect.objectContaining({
+        status: "conflict",
+        httpStatus: 409,
+        errorType: "conflict",
+      }),
+    );
+
+    mockTrack.mockClear();
+    act(() => {
+      result.current.clearOutcome();
+    });
+
+    await act(async () => {
+      await result.current.submit({ draft, assessmentVersion });
+    });
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_STARTED,
+      expect.objectContaining({ status: "submitting" }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_UNKNOWN,
+      expect.objectContaining({
+        status: "unknown",
+        errorType: "unknown",
+      }),
+    );
+
+    mockTrack.mockClear();
+
+    await act(async () => {
+      await result.current.submit({ draft, assessmentVersion });
+    });
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_STARTED,
+      expect.objectContaining({ status: "submitting" }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.AMENDMENT_SUBMISSION_SUCCEEDED,
+      expect.objectContaining({
+        bookingId: "booking-001",
+        status: "succeeded",
+      }),
+    );
+    expect(JSON.stringify(mockTrack.mock.calls)).not.toContain("Keep dry.");
   });
 });

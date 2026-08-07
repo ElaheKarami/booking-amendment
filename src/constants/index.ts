@@ -10,3 +10,5 @@ export {
   PERMISSION_ROLES,
 } from "./Permissions";
 export { ROUTES } from "./Routes";
+export { TELEMETRY_EVENTS } from "./TelemetryEvents";
+

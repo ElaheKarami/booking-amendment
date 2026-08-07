@@ -9,7 +9,11 @@ import {
 } from "@/components/organisms";
 import { BookingWorkspaceSkeleton } from "@/components/skeletons";
 import { DEFAULT_BOOKING_ID } from "@/constants";
-import { useBooking, useUnsavedChangesProtection } from "@/hooks";
+import {
+  useBooking,
+  useBookingAmendmentTelemetry,
+  useUnsavedChangesProtection,
+} from "@/hooks";
 import { useAuth } from "@/providers";
 import { ApiError } from "@/services/errorHandling";
 
@@ -32,10 +36,10 @@ function BookingAmendmentDetails({
     error,
     refetch,
   } = useBooking(bookingId);
+  useBookingAmendmentTelemetry(booking?.id);
   const [isDirty, setIsDirty] = useState(false);
   const { isConfirmOpen, requestDiscard, confirmDiscard, cancelDiscard } =
     useUnsavedChangesProtection(isDirty);
-
   const handleBack = () => requestDiscard(onBack);
 
   if (isLoading) {

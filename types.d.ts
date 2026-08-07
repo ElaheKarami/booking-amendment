@@ -157,6 +157,34 @@ declare global {
     | "duplicate"
     | "out-of-order";
 
+  type TelemetryEventName =
+    | "booking_amendment_opened"
+    | "booking_amendment_changed"
+    | "impact_assessment_requested"
+    | "impact_assessment_succeeded"
+    | "impact_assessment_failed"
+    | "assessment_became_stale"
+    | "amendment_submission_started"
+    | "amendment_version_conflict"
+    | "amendment_submission_unknown"
+    | "amendment_submission_succeeded";
+
+  type TelemetryProperties = {
+    bookingId?: string;
+    baseVersion?: number;
+    status?: string;
+    httpStatus?: number;
+    errorType?: string;
+  };
+
+  type Telemetry = {
+    track(
+      event: TelemetryEventName | string,
+      properties?: TelemetryProperties,
+    ): void;
+    captureError(error: unknown, context?: TelemetryProperties): void;
+  };
+
   type BookingDto = Booking;
   type VoyageOptionDto = VoyageOption;
   type AmendmentImpactDto = AmendmentImpact;

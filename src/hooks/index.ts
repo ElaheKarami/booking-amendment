@@ -1,4 +1,5 @@
 export { bookingQueryKey, useBooking } from "./useBooking";
+export { useBookingAmendmentTelemetry } from "./useBookingAmendmentTelemetry";
 export {
   useImpactAssessment,
   type AssessmentLifecycleStatus,

@@ -16,6 +16,6 @@
 
 ## Acceptance Criteria
 
-- [ ] All ten required events are emitted at their lifecycle transitions.
-- [ ] No telemetry implementation is embedded in feature UI components.
-- [ ] Sensitive booking, customer, and token values are not logged.
+- [x] All ten required events are emitted at their lifecycle transitions.
+- [x] No telemetry implementation is embedded in feature UI components.
+- [x] Sensitive booking, customer, and token values are not logged.

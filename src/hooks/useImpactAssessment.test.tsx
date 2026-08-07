@@ -1,6 +1,8 @@
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { TELEMETRY_EVENTS } from "@/constants";
+import { captureError, track } from "@/lib/telemetry";
 import { assessAmendment } from "@/services/bookingAmendmentService/bookingAmendmentService";
 import { ApiError } from "@/services/errorHandling";
 import { useImpactAssessment } from "./useImpactAssessment";
@@ -9,7 +11,15 @@ jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   assessAmendment: jest.fn(),
 }));
 
+jest.mock("@/lib/telemetry", () => ({
+  track: jest.fn(),
+  captureError: jest.fn(),
+}));
+
 const mockAssessAmendment = jest.mocked(assessAmendment);
+const mockTrack = jest.mocked(track);
+const mockCaptureError = jest.mocked(captureError);
+
 
 const draft: BookingAmendmentDraft = {
   bookingId: "booking-001",
@@ -54,6 +64,8 @@ function createWrapper() {
 describe("useImpactAssessment", () => {
   beforeEach(() => {
     mockAssessAmendment.mockReset();
+    mockTrack.mockReset();
+    mockCaptureError.mockReset();
   });
 
   it("starts not-calculated and disables submit", () => {
@@ -253,5 +265,98 @@ describe("useImpactAssessment", () => {
 
     expect(result.current.status).toBe("valid");
     expect(result.current.impact?.assessmentVersion).toBe("assessment-new");
+  });
+
+  it("emits assessment lifecycle telemetry without sensitive draft fields", async () => {
+    mockAssessAmendment
+      .mockResolvedValueOnce(impact)
+      .mockRejectedValueOnce(
+        new ApiError("Assessment timed out.", 504, ["Assessment timed out."], {
+          type: "network",
+          retryable: true,
+        }),
+      );
+
+    const { result } = renderHook(() => useImpactAssessment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.recalculate(draft);
+    });
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.IMPACT_ASSESSMENT_REQUESTED,
+      expect.objectContaining({
+        bookingId: "booking-001",
+        baseVersion: 7,
+        status: "calculating",
+      }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.IMPACT_ASSESSMENT_SUCCEEDED,
+      expect.objectContaining({
+        bookingId: "booking-001",
+        status: "valid",
+      }),
+    );
+
+    act(() => {
+      result.current.syncDraft({ ...draft, voyageId: "voyage-002" });
+    });
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.BOOKING_AMENDMENT_CHANGED,
+      { bookingId: "booking-001", baseVersion: 7 },
+    );
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.ASSESSMENT_BECAME_STALE,
+      expect.objectContaining({
+        bookingId: "booking-001",
+        status: "stale",
+      }),
+    );
+
+    const staleCalls = mockTrack.mock.calls.filter(
+      ([event]) => event === TELEMETRY_EVENTS.ASSESSMENT_BECAME_STALE,
+    );
+    expect(staleCalls).toHaveLength(1);
+
+    act(() => {
+      result.current.syncDraft({ ...draft, voyageId: "voyage-003" });
+    });
+    expect(
+      mockTrack.mock.calls.filter(
+        ([event]) => event === TELEMETRY_EVENTS.ASSESSMENT_BECAME_STALE,
+      ),
+    ).toHaveLength(1);
+
+    mockTrack.mockClear();
+    mockCaptureError.mockClear();
+
+    await act(async () => {
+      await result.current.recalculate({ ...draft, voyageId: "voyage-003" });
+    });
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      TELEMETRY_EVENTS.IMPACT_ASSESSMENT_FAILED,
+      expect.objectContaining({
+        bookingId: "booking-001",
+        status: "failed",
+        httpStatus: 504,
+        errorType: "network",
+      }),
+    );
+    expect(mockCaptureError).toHaveBeenCalledWith(
+      expect.any(ApiError),
+      expect.objectContaining({
+        bookingId: "booking-001",
+        errorType: "network",
+      }),
+    );
+    expect(JSON.stringify(mockTrack.mock.calls)).not.toContain("Keep dry.");
+    expect(JSON.stringify(mockCaptureError.mock.calls)).not.toContain(
+      "Keep dry.",
+    );
   });
 });
