@@ -4,6 +4,7 @@ import {
 } from "@/components/atoms/ToastBanner/showMessage";
 import {
   notify,
+  normalizeApiError,
   reportApiError,
   showErrorMessage,
   showSuccessMessage,
@@ -39,5 +40,25 @@ describe("errorHandling toast wire-up", () => {
   it("notify accepts typed channels", () => {
     notify("success", "Ok");
     expect(getToasts()[0]?.type).toBe("success");
+  });
+
+  it("preserves typed application errors from API responses", () => {
+    const error = normalizeApiError({
+      isAxiosError: true,
+      message: "Request failed with status code 422",
+      response: {
+        status: 422,
+        data: {
+          type: "validation",
+          fields: { voyageId: ["Select a compatible voyage."] },
+        },
+      },
+    });
+
+    expect(error.applicationError).toEqual({
+      type: "validation",
+      fields: { voyageId: ["Select a compatible voyage."] },
+    });
+    expect(error.reasons).toEqual(["Select a compatible voyage."]);
   });
 });

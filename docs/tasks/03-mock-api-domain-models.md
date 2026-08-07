@@ -20,7 +20,7 @@
 
 ## Acceptance Criteria
 
-- [ ] No component or hook makes direct `fetch` or Axios calls.
-- [ ] Original server booking data is transformed and remains immutable.
-- [ ] Raw transport errors never reach components.
-- [ ] Each endpoint supports the scenarios required by the challenge.
+- [x] No component or hook makes direct `fetch` or Axios calls.
+- [x] Original server booking data is transformed and remains immutable.
+- [x] Raw transport errors never reach components.
+- [x] Each endpoint supports the scenarios required by the challenge.

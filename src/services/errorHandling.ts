@@ -10,12 +10,54 @@ export class ApiError extends Error {
 
   readonly reasons: string[];
 
-  constructor(message: string, status?: number, reasons: string[] = []) {
+  readonly applicationError: ApplicationError;
+
+  constructor(
+    message: string,
+    status?: number,
+    reasons: string[] = [],
+    applicationError: ApplicationError = {
+      type: "unknown",
+      message,
+    },
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.reasons = reasons;
+    this.applicationError = applicationError;
   }
+}
+
+function isApplicationError(value: unknown): value is ApplicationError {
+  if (!value || typeof value !== "object" || !("type" in value)) {
+    return false;
+  }
+
+  const type = value.type;
+  return (
+    type === "validation" ||
+    type === "business-rule" ||
+    type === "conflict" ||
+    type === "network" ||
+    type === "unknown"
+  );
+}
+
+function applicationErrorMessages(error: ApplicationError): string[] {
+  if (error.type === "validation") {
+    return Object.values(error.fields).flat();
+  }
+
+  if (error.type === "conflict") {
+    return ["The booking was modified by another user."];
+  }
+
+  if (error.type === "network") {
+    return ["A network error occurred. Please try again."];
+  }
+
+  return [error.message];
 }
 
 export function normalizeApiError(error: unknown): ApiError {
@@ -23,22 +65,63 @@ export function normalizeApiError(error: unknown): ApiError {
     return error;
   }
 
-  if (isAxiosError<{ errorReasons?: unknown }>(error)) {
-    const errorReasons = error.response?.data?.errorReasons;
+  if (
+    isAxiosError<{
+      errorReasons?: unknown;
+      code?: unknown;
+      currentVersion?: unknown;
+    }>(error)
+  ) {
+    const data = error.response?.data;
+    if (isApplicationError(data)) {
+      const reasons = applicationErrorMessages(data);
+      return new ApiError(
+        reasons[0] ?? "An unexpected error occurred.",
+        error.response?.status,
+        reasons,
+        data,
+      );
+    }
+
+    if (
+      data?.code === "BOOKING_VERSION_CONFLICT" &&
+      typeof data.currentVersion === "number"
+    ) {
+      const applicationError: ApplicationError = {
+        type: "conflict",
+        currentVersion: data.currentVersion,
+      };
+      const reasons = applicationErrorMessages(applicationError);
+      return new ApiError(
+        reasons[0],
+        error.response?.status,
+        reasons,
+        applicationError,
+      );
+    }
+
+    const errorReasons = data?.errorReasons;
     const reasons = Array.isArray(errorReasons)
       ? errorReasons.filter(
           (reason): reason is string => typeof reason === "string",
         )
       : [];
+    const applicationError: ApplicationError = error.response
+      ? { type: "unknown", message: reasons[0] ?? error.message }
+      : { type: "network", retryable: true };
 
     return new ApiError(
-      reasons[0] ?? error.message,
+      reasons[0] ?? applicationErrorMessages(applicationError)[0],
       error.response?.status,
       reasons,
+      applicationError,
     );
   }
 
-  return new ApiError("An unexpected error occurred.");
+  return new ApiError("An unexpected error occurred.", undefined, [], {
+    type: "unknown",
+    message: "An unexpected error occurred.",
+  });
 }
 
 type NotifyType = Extract<ToastType, "error" | "success" | "warning">;
@@ -84,9 +167,7 @@ function track(messages: string[]): void {
   });
 }
 
-function toMessages(
-  description: string | string[],
-): string[] {
+function toMessages(description: string | string[]): string[] {
   return Array.isArray(description) ? description : [description];
 }
 
@@ -142,9 +223,7 @@ export function reportApiError(
 ): ApiError {
   const normalized = normalizeApiError(error);
   const messages =
-    normalized.reasons.length > 0
-      ? normalized.reasons
-      : [normalized.message];
+    normalized.reasons.length > 0 ? normalized.reasons : [normalized.message];
   showErrorMessage(messages, options);
   return normalized;
 }

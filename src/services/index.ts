@@ -9,3 +9,11 @@ export {
   showSuccessMessage,
   showWarningMessage,
 } from "./errorHandling";
+export {
+  assessAmendment,
+  getBooking,
+  getLatestBookingVersion,
+  getSubmissionStatus,
+  getVoyages,
+  submitAmendment,
+} from "./bookingAmendmentService";
