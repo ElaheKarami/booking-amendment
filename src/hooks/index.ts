@@ -1,6 +1,10 @@
 export { bookingQueryKey, useBooking } from "./useBooking";
 export { useBookingAmendmentTelemetry } from "./useBookingAmendmentTelemetry";
 export {
+  useBookingAmendmentWorkspace,
+  type UseBookingAmendmentWorkspaceArgs,
+} from "./useBookingAmendmentWorkspace";
+export {
   useImpactAssessment,
   type AssessmentLifecycleStatus,
 } from "./useImpactAssessment";
