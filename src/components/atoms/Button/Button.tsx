@@ -28,16 +28,19 @@ function Button({
   ref,
   ...rest
 }: ButtonProps) {
+  const isDisabled = Boolean(disabled || isLoading);
+
   const rootClass = clsx(
     "inline-flex items-center justify-center gap-2 font-semibold rounded-btn select-none",
     "transition-colors duration-fast ease-motion-standard",
-    "cursor-pointer focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed",
+    "focus-visible:outline-none focus-visible:shadow-focus-ring",
+    isDisabled ? "cursor-not-allowed" : "cursor-pointer",
     {
       "bg-primary text-onnavy-1 hover:bg-primary-hover active:bg-primary-active disabled:opacity-45":
         variant === "primary",
       "bg-primary-emphasis text-onnavy-1 hover:bg-primary-emphasis-hover active:bg-primary-emphasis-active disabled:opacity-45":
         variant === "primary-emphasis",
-      "bg-surface text-text-2-stronger border border-border-strong hover:bg-slate-50 active:bg-slate-200 disabled:text-text-3 disabled:border-border":
+      "bg-surface text-text-2-stronger border border-border-strong hover:bg-slate-50 active:bg-slate-200 disabled:opacity-45 disabled:text-text-3 disabled:border-border disabled:hover:bg-surface disabled:active:bg-surface":
         variant === "secondary",
       "bg-transparent text-text-2-stronger hover:bg-slate-75 active:bg-slate-200 disabled:opacity-45":
         variant === "ghost",
@@ -54,8 +57,9 @@ function Button({
       ref={ref}
       type={type}
       className={rootClass}
-      disabled={disabled || isLoading}
       {...rest}
+      disabled={isDisabled}
+      aria-disabled={isDisabled || undefined}
     >
       {isLoading && (
         <Spinner size={size === "sm" ? 16 : 18} aria-hidden="true" />

@@ -1,12 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card } from "@/components/atoms";
 import { PermissionGate } from "@/components/molecules";
+import { ImpactAssessmentPanelSkeleton } from "@/components/skeletons";
 import AmendmentForm from "../AmendmentForm/AmendmentForm";
-import ImpactAssessmentPanel from "../ImpactAssessmentPanel/ImpactAssessmentPanel";
 import {
   useImpactAssessment,
+  useNetworkStatus,
   useReloadBooking,
   useSubmissionStatus,
   useSubmitAmendment,
@@ -18,6 +20,14 @@ import {
 } from "@/services/errorHandling";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
 import { amendmentDraftFingerprint } from "@/utils/amendmentDraftFingerprint";
+
+const ImpactAssessmentPanel = dynamic(
+  () => import("../ImpactAssessmentPanel/ImpactAssessmentPanel"),
+  {
+    loading: () => <ImpactAssessmentPanelSkeleton />,
+    ssr: false,
+  },
+);
 
 export interface BookingAmendmentWorkspaceProps {
   booking: Booking;
@@ -97,10 +107,6 @@ function submissionFeedback(
   }
 }
 
-function readNavigatorOnline(): boolean {
-  return typeof navigator === "undefined" ? true : navigator.onLine;
-}
-
 function BookingAmendmentWorkspace({
   booking,
   canEdit,
@@ -114,10 +120,15 @@ function BookingAmendmentWorkspace({
   );
   const [baselineKey, setBaselineKey] = useState(0);
   const [draft, setDraft] = useState<BookingAmendmentDraft>(formBaseline);
-  const [isOnline, setIsOnline] = useState(readNavigatorOnline);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const draftFingerprintRef = useRef(amendmentDraftFingerprint(formBaseline));
+  const previousOnlineRef = useRef(true);
   const reloadBooking = useReloadBooking();
+  const {
+    isOnline,
+    justReconnected,
+    acknowledgeReconnect,
+  } = useNetworkStatus();
   const {
     status,
     impact,
@@ -145,20 +156,31 @@ function BookingAmendmentWorkspace({
   } = useSubmissionStatus();
 
   useEffect(() => {
-    const syncOnlineStatus = () => setIsOnline(readNavigatorOnline());
+    const wasOnline = previousOnlineRef.current;
+    previousOnlineRef.current = isOnline;
 
-    window.addEventListener("online", syncOnlineStatus);
-    window.addEventListener("offline", syncOnlineStatus);
-    window.addEventListener("focus", syncOnlineStatus);
-    document.addEventListener("visibilitychange", syncOnlineStatus);
+    if (wasOnline && !isOnline) {
+      // A retained assessment is never current just because it still exists.
+      markStale();
+    }
+  }, [isOnline, markStale]);
 
-    return () => {
-      window.removeEventListener("online", syncOnlineStatus);
-      window.removeEventListener("offline", syncOnlineStatus);
-      window.removeEventListener("focus", syncOnlineStatus);
-      document.removeEventListener("visibilitychange", syncOnlineStatus);
-    };
-  }, []);
+  const reconnectNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    if (!justReconnected || reconnectNotifiedRef.current) return;
+
+    reconnectNotifiedRef.current = true;
+    showWarningMessage(
+      "Connection restored. Recalculate impact before submitting — a previous assessment is not current.",
+    );
+  }, [justReconnected]);
+
+  useEffect(() => {
+    if (!isOnline) {
+      reconnectNotifiedRef.current = false;
+    }
+  }, [isOnline]);
 
   const handleDraftChange = useCallback(
     (next: BookingAmendmentFormValues) => {
@@ -176,11 +198,14 @@ function BookingAmendmentWorkspace({
   );
 
   const handleRecalculate = useCallback(() => {
+    if (!isOnline) return;
+    acknowledgeReconnect();
     void recalculate(draft);
-  }, [draft, recalculate]);
+  }, [acknowledgeReconnect, draft, isOnline, recalculate]);
 
   const handleSubmit = useCallback(async () => {
     if (!impact?.assessmentVersion) return;
+    if (!isOnline) return;
 
     const outcome = await submit({
       draft,
@@ -192,7 +217,7 @@ function BookingAmendmentWorkspace({
     setFormBaseline(draft);
     setBaselineKey((key) => key + 1);
     onDirtyChange?.(false);
-  }, [draft, impact, onDirtyChange, submit]);
+  }, [draft, impact, isOnline, onDirtyChange, submit]);
 
   const applyLatestBooking = useCallback(async () => {
     setIsLoadingLatest(true);
@@ -270,6 +295,8 @@ function BookingAmendmentWorkspace({
     isOnline &&
     !isSubmitting &&
     submissionStatus !== "succeeded";
+  const recalculateEnabled =
+    canEdit && isOnline && !isCalculating && !isSubmitting && !isLoadingLatest;
 
   return (
     <div className="flex flex-col gap-6">
@@ -336,6 +363,11 @@ function BookingAmendmentWorkspace({
               Offline — reconnect before submitting
             </Badge>
           )}
+          {isOnline && justReconnected && (
+            <Badge tone="info" aria-live="polite">
+              Reconnected — recalculate before submitting
+            </Badge>
+          )}
           {resultFeedback && (
             <Badge tone={resultFeedback.tone} aria-live="polite">
               {resultFeedback.label}
@@ -392,7 +424,7 @@ function BookingAmendmentWorkspace({
             <Button
               type="button"
               variant="secondary"
-              disabled={!canEdit || isCalculating || isSubmitting || isLoadingLatest}
+              disabled={!recalculateEnabled}
               isLoading={isCalculating}
               onClick={handleRecalculate}
             >

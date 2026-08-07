@@ -80,6 +80,10 @@ function notifySubmissionOutcome(
   }
 }
 
+function isBrowserOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 export function useSubmitAmendment() {
   const [status, setStatus] = useState<SubmissionLifecycleStatus>("idle");
   const [submission, setSubmission] = useState<AmendmentSubmission | null>(
@@ -92,7 +96,13 @@ export function useSubmitAmendment() {
   const inFlightRef = useRef(false);
 
   const { mutateAsync } = useMutation({
-    mutationFn: (command: SubmitAmendmentCommand) => submitAmendment(command),
+    mutationFn: ({
+      command,
+      signal,
+    }: {
+      command: SubmitAmendmentCommand;
+      signal: AbortSignal;
+    }) => submitAmendment(command, { signal }),
   });
 
   const clearOutcome = useCallback(() => {
@@ -112,6 +122,11 @@ export function useSubmitAmendment() {
     }: SubmitAmendmentInput): Promise<SubmissionLifecycleStatus> => {
       if (inFlightRef.current) {
         return "submitting";
+      }
+
+      if (isBrowserOffline()) {
+        showWarningMessage("Offline — reconnect before submitting");
+        return status === "unknown" ? "unknown" : "idle";
       }
 
       const reuseKey =
@@ -135,8 +150,28 @@ export function useSubmitAmendment() {
         idempotencyKey: nextKey,
       };
 
+      const controller = new AbortController();
+      const handleOffline = () => {
+        controller.abort();
+      };
+
+      if (typeof window !== "undefined") {
+        window.addEventListener("offline", handleOffline);
+      }
+
       try {
-        const result = await mutateAsync(command);
+        const result = await mutateAsync({
+          command,
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted || isBrowserOffline()) {
+          setSubmission(null);
+          setStatus("unknown");
+          setError(null);
+          notifySubmissionOutcome("unknown", null, null, nextKey);
+          return "unknown";
+        }
 
         if (result.status === "rejected") {
           const rejectionError = new ApiError(
@@ -157,6 +192,14 @@ export function useSubmitAmendment() {
         notifySubmissionOutcome("succeeded", result, null, nextKey);
         return "succeeded";
       } catch (caught) {
+        if (controller.signal.aborted || isBrowserOffline()) {
+          setSubmission(null);
+          setStatus("unknown");
+          setError(null);
+          notifySubmissionOutcome("unknown", null, null, nextKey);
+          return "unknown";
+        }
+
         const normalized = normalizeApiError(caught);
         const nextStatus = classifySubmissionError(normalized);
         setError(normalized);
@@ -165,6 +208,9 @@ export function useSubmitAmendment() {
         notifySubmissionOutcome(nextStatus, null, normalized, nextKey);
         return nextStatus;
       } finally {
+        if (typeof window !== "undefined") {
+          window.removeEventListener("offline", handleOffline);
+        }
         inFlightRef.current = false;
       }
     },

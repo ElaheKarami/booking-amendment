@@ -30,6 +30,14 @@ jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   ]),
 }));
 
+jest.mock("next/dynamic", () => ({
+  __esModule: true,
+  default: () =>
+    // Load the panel synchronously in tests so Suspense/lazy timing is irrelevant.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("../ImpactAssessmentPanel/ImpactAssessmentPanel").default,
+}));
+
 const mockAssessAmendment = jest.mocked(assessAmendment);
 const mockGetBooking = jest.mocked(getBooking);
 const mockGetSubmissionStatus = jest.mocked(getSubmissionStatus);
@@ -303,7 +311,7 @@ describe("BookingAmendmentWorkspace", () => {
     ).toBeDisabled();
   });
 
-  it("disables submit while offline and re-enables when back online", async () => {
+  it("disables submit while offline and requires recalculate after reconnect", async () => {
     const user = userEvent.setup();
 
     renderWorkspace();
@@ -322,6 +330,10 @@ describe("BookingAmendmentWorkspace", () => {
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Recalculate" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Outdated result")).toBeInTheDocument();
 
     setNavigatorOnline(true);
     await act(async () => {
@@ -331,6 +343,20 @@ describe("BookingAmendmentWorkspace", () => {
     await waitFor(() => {
       expect(
         screen.queryByText("Offline — reconnect before submitting"),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("Reconnected — recalculate before submitting"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeDisabled();
+
+    await recalculateToValid(user);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Reconnected — recalculate before submitting"),
       ).not.toBeInTheDocument();
     });
     expect(
@@ -369,6 +395,7 @@ describe("BookingAmendmentWorkspace", () => {
         }),
         idempotencyKey: expect.any(String),
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),

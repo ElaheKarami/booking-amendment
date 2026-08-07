@@ -19,6 +19,6 @@
 
 ## Acceptance Criteria
 
-- [ ] Offline state cannot submit an amendment or imply success.
-- [ ] At least three performance measures are demonstrably implemented.
-- [ ] Large-data behavior remains responsive or is documented with the required strategy.
+- [x] Offline state cannot submit an amendment or imply success.
+- [x] At least three performance measures are demonstrably implemented.
+- [x] Large-data behavior remains responsive or is documented with the required strategy.

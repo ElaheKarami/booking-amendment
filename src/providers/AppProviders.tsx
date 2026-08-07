@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { ToastViewport } from "@/components/atoms";
+import ServiceWorkerRegistration from "./ServiceWorkerRegistration/ServiceWorkerRegistration";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -25,6 +26,7 @@ export default function AppProviders({ children }: AppProvidersProps) {
     <QueryClientProvider client={queryClient}>
       {children}
       <ToastViewport />
+      <ServiceWorkerRegistration />
     </QueryClientProvider>
   );
 }

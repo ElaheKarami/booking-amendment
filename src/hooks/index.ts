@@ -5,6 +5,10 @@ export {
 } from "./useImpactAssessment";
 export { useReloadBooking } from "./useReloadBooking";
 export {
+  useNetworkStatus,
+  type NetworkConnectivity,
+} from "./useNetworkStatus";
+export {
   useSubmitAmendment,
   type SubmissionLifecycleStatus,
   type SubmitAmendmentInput,

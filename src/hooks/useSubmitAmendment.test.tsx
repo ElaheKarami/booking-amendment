@@ -8,7 +8,10 @@ import {
   showSuccessMessage,
   showWarningMessage,
 } from "@/services/errorHandling";
-import { useSubmitAmendment } from "./useSubmitAmendment";
+import {
+  useSubmitAmendment,
+  type SubmissionLifecycleStatus,
+} from "./useSubmitAmendment";
 
 jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   submitAmendment: jest.fn(),
@@ -64,6 +67,10 @@ describe("useSubmitAmendment", () => {
     mockShowSuccessMessage.mockReset();
     mockShowErrorMessage.mockReset();
     mockShowWarningMessage.mockReset();
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      get: () => true,
+    });
   });
 
   it("starts idle with no submission", () => {
@@ -101,6 +108,7 @@ describe("useSubmitAmendment", () => {
         amendment: draft,
         idempotencyKey: expect.any(String),
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(result.current.status).toBe("succeeded");
     expect(result.current.submission?.id).toBe("submission-001");
@@ -123,7 +131,7 @@ describe("useSubmitAmendment", () => {
       wrapper: createWrapper(),
     });
 
-    let firstPromise: Promise<void>;
+    let firstPromise: Promise<SubmissionLifecycleStatus>;
     act(() => {
       firstPromise = result.current.submit({ draft, assessmentVersion });
     });
@@ -282,6 +290,62 @@ describe("useSubmitAmendment", () => {
     expect(mockShowWarningMessage).toHaveBeenCalledWith(
       expect.stringMatching(/^Submission status unknown · reference /),
     );
+  });
+
+  it("treats a submission failure while offline as unknown and keeps the key", async () => {
+    mockSubmitAmendment.mockImplementationOnce(async () => {
+      Object.defineProperty(window.navigator, "onLine", {
+        configurable: true,
+        get: () => false,
+      });
+
+      throw new ApiError(
+        "A network error occurred. Please try again.",
+        0,
+        ["A network error occurred. Please try again."],
+        { type: "network", retryable: true },
+      );
+    });
+
+    const { result } = renderHook(() => useSubmitAmendment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submit({ draft, assessmentVersion });
+    });
+
+    expect(result.current.status).toBe("unknown");
+    expect(result.current.idempotencyKey).toEqual(expect.any(String));
+    expect(mockShowWarningMessage).toHaveBeenCalledWith(
+      `Submission status unknown · reference ${result.current.idempotencyKey}`,
+    );
+  });
+
+  it("refuses to start a submission while offline", async () => {
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      get: () => false,
+    });
+
+    const { result } = renderHook(() => useSubmitAmendment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submit({ draft, assessmentVersion });
+    });
+
+    expect(mockSubmitAmendment).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+    expect(mockShowWarningMessage).toHaveBeenCalledWith(
+      "Offline — reconnect before submitting",
+    );
+
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      get: () => true,
+    });
   });
 
   it("clears a terminal outcome back to idle", async () => {
