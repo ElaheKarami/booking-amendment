@@ -19,8 +19,8 @@
 
 ## Acceptance Criteria
 
-- [ ] No non-permitted booking field is editable.
-- [ ] Container rows can be changed dynamically.
-- [ ] Reset restores the original booking values.
-- [ ] Dirty state changes only after meaningful edits.
-- [ ] Field errors are displayed at the correct fields.
+- [x] No non-permitted booking field is editable.
+- [x] Container rows can be changed dynamically.
+- [x] Reset restores the original booking values.
+- [x] Dirty state changes only after meaningful edits.
+- [x] Field errors are displayed at the correct fields.
