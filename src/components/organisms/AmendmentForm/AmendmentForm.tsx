@@ -30,6 +30,8 @@ export interface AmendmentFormProps {
   portOfLoading: string;
   currentVoyageLabel: string;
   disabled?: boolean;
+  /** When this changes, the form resets to `defaultValues` as a clean baseline. */
+  baselineKey?: number;
   onDirtyChange?: (isDirty: boolean) => void;
   onDraftChange?: (draft: BookingAmendmentFormValues) => void;
   requestDiscard: (onConfirm: () => void) => void;
@@ -40,6 +42,7 @@ function AmendmentForm({
   portOfLoading,
   currentVoyageLabel,
   disabled = false,
+  baselineKey = 0,
   onDirtyChange,
   onDraftChange,
   requestDiscard,
@@ -222,6 +225,11 @@ function AmendmentForm({
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (baselineKey === 0) return;
+    reset(defaultValues);
+  }, [baselineKey, defaultValues, reset]);
 
   return (
     <form className="mt-5 flex flex-col gap-4" noValidate>

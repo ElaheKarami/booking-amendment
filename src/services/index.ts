@@ -16,4 +16,4 @@ export {
   getSubmissionStatus,
   getVoyages,
   submitAmendment,
-} from "./bookingAmendmentService";
+} from "./bookingAmendmentService/bookingAmendmentService";

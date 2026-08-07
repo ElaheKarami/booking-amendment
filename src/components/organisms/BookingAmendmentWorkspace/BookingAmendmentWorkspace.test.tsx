@@ -5,11 +5,11 @@ import AuthProvider from "@/providers/AuthProvider";
 import {
   assessAmendment,
   submitAmendment,
-} from "@/services/bookingAmendmentService";
+} from "@/services/bookingAmendmentService/bookingAmendmentService";
 import { ApiError } from "@/services/errorHandling";
 import BookingAmendmentWorkspace from "./BookingAmendmentWorkspace";
 
-jest.mock("@/services/bookingAmendmentService", () => ({
+jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   assessAmendment: jest.fn(),
   submitAmendment: jest.fn(),
   getVoyages: jest.fn().mockResolvedValue([
@@ -197,7 +197,9 @@ describe("BookingAmendmentWorkspace", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("The selected voyage does not support 40HC equipment."),
+        screen.getByText(
+          "The selected voyage does not support 40HC equipment.",
+        ),
       ).toBeInTheDocument();
     });
 
@@ -225,9 +227,7 @@ describe("BookingAmendmentWorkspace", () => {
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Recalculate" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Recalculate" })).toBeDisabled();
 
     resolveAssessment?.(impact);
 
@@ -272,9 +272,7 @@ describe("BookingAmendmentWorkspace", () => {
       ).toBeEnabled();
     });
 
-    const instructions = screen.getByLabelText(
-      "Special handling instructions",
-    );
+    const instructions = screen.getByLabelText("Special handling instructions");
     await user.clear(instructions);
     await user.type(instructions, "Keep dry and upright.");
 
@@ -289,7 +287,7 @@ describe("BookingAmendmentWorkspace", () => {
     ).toBeDisabled();
   });
 
-  it("disables submit while offline", async () => {
+  it("disables submit while offline and re-enables when back online", async () => {
     const user = userEvent.setup();
 
     renderWorkspace();
@@ -313,6 +311,15 @@ describe("BookingAmendmentWorkspace", () => {
     await act(async () => {
       window.dispatchEvent(new Event("online"));
     });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Offline — reconnect before submitting"),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeEnabled();
   });
 
   it("submits the command and shows the accepted amendment id", async () => {
@@ -350,9 +357,12 @@ describe("BookingAmendmentWorkspace", () => {
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeDisabled();
+    expect(screen.getByLabelText("Special handling instructions")).toHaveValue(
+      "Keep dry.",
+    );
     expect(
-      screen.getByLabelText("Special handling instructions"),
-    ).toHaveValue("Keep dry.");
+      screen.getByText("No unsaved amendment changes"),
+    ).toBeInTheDocument();
   });
 
   it("shows rejection feedback and preserves the draft", async () => {
@@ -381,9 +391,9 @@ describe("BookingAmendmentWorkspace", () => {
         screen.getByText("Cargo readiness is no longer valid."),
       ).toBeInTheDocument();
     });
-    expect(
-      screen.getByLabelText("Special handling instructions"),
-    ).toHaveValue("Keep dry.");
+    expect(screen.getByLabelText("Special handling instructions")).toHaveValue(
+      "Keep dry.",
+    );
   });
 
   it("shows conflict feedback without clearing the draft", async () => {
@@ -407,9 +417,49 @@ describe("BookingAmendmentWorkspace", () => {
         screen.getByText("The booking was modified by another user."),
       ).toBeInTheDocument();
     });
-    expect(
-      screen.getByLabelText("Special handling instructions"),
-    ).toHaveValue("Keep dry.");
+    expect(screen.getByLabelText("Special handling instructions")).toHaveValue(
+      "Keep dry.",
+    );
+  });
+
+  it("clears submission status feedback when the draft changes", async () => {
+    const user = userEvent.setup();
+    mockSubmitAmendment.mockRejectedValueOnce(
+      new ApiError(
+        "Cargo readiness is no longer valid.",
+        422,
+        ["Cargo readiness is no longer valid."],
+        {
+          type: "validation",
+          fields: {
+            cargoReadinessDate: ["Cargo readiness is no longer valid."],
+          },
+        },
+      ),
+    );
+
+    renderWorkspace();
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Cargo readiness is no longer valid."),
+      ).toBeInTheDocument();
+    });
+
+    const instructions = screen.getByLabelText(
+      "Special handling instructions",
+    );
+    await user.clear(instructions);
+    await user.type(instructions, "Keep dry and upright.");
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Cargo readiness is no longer valid."),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("prevents duplicate clicks while submitting and shows loading", async () => {

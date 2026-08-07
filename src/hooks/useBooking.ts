@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getBooking } from "@/services/bookingAmendmentService";
+import { getBooking } from "@/services";
 import { normalizeApiError } from "@/services/errorHandling";
 
 export function bookingQueryKey(bookingId: string) {

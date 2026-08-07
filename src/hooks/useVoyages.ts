@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getVoyages } from "@/services/bookingAmendmentService";
+import { getVoyages } from "@/services/bookingAmendmentService/bookingAmendmentService";
 import { normalizeApiError } from "@/services/errorHandling";
 
 export function voyagesQueryKey(search: VoyageSearch) {
@@ -8,9 +8,7 @@ export function voyagesQueryKey(search: VoyageSearch) {
 
 export function useVoyages(search: VoyageSearch, enabled = true) {
   const canSearch = Boolean(
-    search.portOfLoading &&
-      search.portOfDischarge &&
-      search.readinessDate,
+    search.portOfLoading && search.portOfDischarge && search.readinessDate,
   );
 
   return useQuery({

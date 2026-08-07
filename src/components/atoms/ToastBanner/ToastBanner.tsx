@@ -47,7 +47,7 @@ function ToastBanner({
     {
       "bg-success text-white": type === "success",
       "bg-error text-white": type === "error",
-      "bg-warning text-text-1": type === "warning",
+      "bg-warning text-white": type === "warning",
       "bg-primary text-white": type === "info",
       "bg-slate-75 text-text-1": type === "loading",
       "flex-wrap lg:flex-nowrap": Boolean(linkHref),

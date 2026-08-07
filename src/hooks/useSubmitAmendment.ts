@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { submitAmendment } from "@/services/bookingAmendmentService";
+import { submitAmendment } from "@/services";
 import {
   ApiError,
   normalizeApiError,
@@ -12,12 +12,7 @@ import {
 } from "@/services/errorHandling";
 
 export type SubmissionLifecycleStatus =
-  | "idle"
-  | "submitting"
-  | "succeeded"
-  | "rejected"
-  | "conflict"
-  | "unknown";
+  "idle" | "submitting" | "succeeded" | "rejected" | "conflict" | "unknown";
 
 export type SubmitAmendmentInput = {
   draft: BookingAmendmentDraft;
@@ -100,10 +95,23 @@ export function useSubmitAmendment() {
     mutationFn: (command: SubmitAmendmentCommand) => submitAmendment(command),
   });
 
+  const clearOutcome = useCallback(() => {
+    if (inFlightRef.current) return;
+
+    setStatus("idle");
+    setSubmission(null);
+    setError(null);
+    idempotencyKeyRef.current = null;
+    setIdempotencyKey(null);
+  }, []);
+
   const submit = useCallback(
-    async ({ draft, assessmentVersion }: SubmitAmendmentInput) => {
+    async ({
+      draft,
+      assessmentVersion,
+    }: SubmitAmendmentInput): Promise<SubmissionLifecycleStatus> => {
       if (inFlightRef.current) {
-        return;
+        return "submitting";
       }
 
       const reuseKey =
@@ -140,13 +148,14 @@ export function useSubmitAmendment() {
           setStatus("rejected");
           setError(rejectionError);
           notifySubmissionOutcome("rejected", result, rejectionError, nextKey);
-          return;
+          return "rejected";
         }
 
         setSubmission(result);
         setStatus("succeeded");
         setError(null);
         notifySubmissionOutcome("succeeded", result, null, nextKey);
+        return "succeeded";
       } catch (caught) {
         const normalized = normalizeApiError(caught);
         const nextStatus = classifySubmissionError(normalized);
@@ -154,6 +163,7 @@ export function useSubmitAmendment() {
         setSubmission(null);
         setStatus(nextStatus);
         notifySubmissionOutcome(nextStatus, null, normalized, nextKey);
+        return nextStatus;
       } finally {
         inFlightRef.current = false;
       }
@@ -168,5 +178,6 @@ export function useSubmitAmendment() {
     idempotencyKey,
     isSubmitting: status === "submitting",
     submit,
+    clearOutcome,
   };
 }

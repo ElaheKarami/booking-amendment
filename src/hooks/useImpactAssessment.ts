@@ -2,19 +2,12 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { assessAmendment } from "@/services/bookingAmendmentService";
-import {
-  ApiError,
-  normalizeApiError,
-} from "@/services/errorHandling";
+import { assessAmendment } from "@/services";
+import { ApiError, normalizeApiError } from "@/services/errorHandling";
 import { amendmentDraftFingerprint } from "@/utils/amendmentDraftFingerprint";
 
 export type AssessmentLifecycleStatus =
-  | "not-calculated"
-  | "calculating"
-  | "valid"
-  | "stale"
-  | "failed";
+  "not-calculated" | "calculating" | "valid" | "stale" | "failed";
 
 type ActiveAssessmentRequest = {
   id: number;

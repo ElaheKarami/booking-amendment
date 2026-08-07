@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { getVoyages } from "@/services/bookingAmendmentService";
+import { getVoyages } from "@/services/bookingAmendmentService/bookingAmendmentService";
 import { ApiError } from "@/services/errorHandling";
 import { useVoyages, voyagesQueryKey } from "./useVoyages";
 

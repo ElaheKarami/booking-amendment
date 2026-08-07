@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card } from "@/components/atoms";
 import { PermissionGate } from "@/components/molecules";
 import AmendmentForm from "../AmendmentForm/AmendmentForm";
@@ -8,6 +8,7 @@ import ImpactAssessmentPanel from "../ImpactAssessmentPanel/ImpactAssessmentPane
 import { useImpactAssessment, useSubmitAmendment } from "@/hooks";
 import type { BookingAmendmentFormValues } from "@/schemas/bookingAmendmentSchema";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
+import { amendmentDraftFingerprint } from "@/utils/amendmentDraftFingerprint";
 
 export interface BookingAmendmentWorkspaceProps {
   booking: Booking;
@@ -86,6 +87,10 @@ function submissionFeedback(
   }
 }
 
+function readNavigatorOnline(): boolean {
+  return typeof navigator === "undefined" ? true : navigator.onLine;
+}
+
 function BookingAmendmentWorkspace({
   booking,
   canEdit,
@@ -93,13 +98,13 @@ function BookingAmendmentWorkspace({
   onDirtyChange,
   requestDiscard,
 }: BookingAmendmentWorkspaceProps) {
-  const [initialDraft] = useState(() =>
+  const [formBaseline, setFormBaseline] = useState(() =>
     bookingAmendmentDraftFromBooking(booking),
   );
-  const [draft, setDraft] = useState<BookingAmendmentDraft>(initialDraft);
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  const [baselineKey, setBaselineKey] = useState(0);
+  const [draft, setDraft] = useState<BookingAmendmentDraft>(formBaseline);
+  const [isOnline, setIsOnline] = useState(readNavigatorOnline);
+  const draftFingerprintRef = useRef(amendmentDraftFingerprint(formBaseline));
   const {
     status,
     impact,
@@ -116,40 +121,57 @@ function BookingAmendmentWorkspace({
     idempotencyKey,
     isSubmitting,
     submit,
+    clearOutcome,
   } = useSubmitAmendment();
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const syncOnlineStatus = () => setIsOnline(readNavigatorOnline());
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", syncOnlineStatus);
+    window.addEventListener("offline", syncOnlineStatus);
+    window.addEventListener("focus", syncOnlineStatus);
+    document.addEventListener("visibilitychange", syncOnlineStatus);
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", syncOnlineStatus);
+      window.removeEventListener("offline", syncOnlineStatus);
+      window.removeEventListener("focus", syncOnlineStatus);
+      document.removeEventListener("visibilitychange", syncOnlineStatus);
     };
   }, []);
 
   const handleDraftChange = useCallback(
     (next: BookingAmendmentFormValues) => {
+      const fingerprint = amendmentDraftFingerprint(next);
       setDraft(next);
       syncDraft(next);
+
+      if (fingerprint !== draftFingerprintRef.current) {
+        draftFingerprintRef.current = fingerprint;
+        clearOutcome();
+      }
     },
-    [syncDraft],
+    [clearOutcome, syncDraft],
   );
 
   const handleRecalculate = useCallback(() => {
     void recalculate(draft);
   }, [draft, recalculate]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!impact?.assessmentVersion) return;
-    void submit({
+
+    const outcome = await submit({
       draft,
       assessmentVersion: impact.assessmentVersion,
     });
-  }, [draft, impact, submit]);
+
+    if (outcome !== "succeeded") return;
+
+    setFormBaseline(draft);
+    setBaselineKey((key) => key + 1);
+    onDirtyChange?.(false);
+  }, [draft, impact, onDirtyChange, submit]);
 
   const feedback = assessmentFeedback(
     status,
@@ -188,7 +210,8 @@ function BookingAmendmentWorkspace({
             }
           >
             <AmendmentForm
-              defaultValues={initialDraft}
+              defaultValues={formBaseline}
+              baselineKey={baselineKey}
               portOfLoading={booking.portOfLoading}
               currentVoyageLabel={`${booking.vesselName} · ${booking.voyageNumber}`}
               disabled={!canEdit || isSubmitting}
@@ -270,7 +293,9 @@ function BookingAmendmentWorkspace({
               variant="primary"
               disabled={!submitEnabled}
               isLoading={isSubmitting}
-              onClick={handleSubmit}
+              onClick={() => {
+                void handleSubmit();
+              }}
             >
               Submit amendment
             </Button>

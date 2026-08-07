@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { submitAmendment } from "@/services/bookingAmendmentService";
+import { submitAmendment } from "@/services/bookingAmendmentService/bookingAmendmentService";
 import {
   ApiError,
   showErrorMessage,
@@ -10,7 +10,7 @@ import {
 } from "@/services/errorHandling";
 import { useSubmitAmendment } from "./useSubmitAmendment";
 
-jest.mock("@/services/bookingAmendmentService", () => ({
+jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   submitAmendment: jest.fn(),
 }));
 
@@ -104,18 +104,14 @@ describe("useSubmitAmendment", () => {
     );
     expect(result.current.status).toBe("succeeded");
     expect(result.current.submission?.id).toBe("submission-001");
-    expect(result.current.idempotencyKey).toEqual(
-      expect.stringMatching(/./),
-    );
+    expect(result.current.idempotencyKey).toEqual(expect.stringMatching(/./));
     expect(mockShowSuccessMessage).toHaveBeenCalledWith(
       "Amendment accepted · submission-001",
     );
   });
 
   it("ignores a second submit while a request is in flight", async () => {
-    let resolveFirst:
-      | ((value: AmendmentSubmission) => void)
-      | undefined;
+    let resolveFirst: ((value: AmendmentSubmission) => void) | undefined;
     mockSubmitAmendment.mockImplementationOnce(
       () =>
         new Promise<AmendmentSubmission>((resolve) => {
@@ -263,12 +259,15 @@ describe("useSubmitAmendment", () => {
 
   it("maps network timeouts after send to unknown", async () => {
     mockSubmitAmendment.mockRejectedValueOnce(
-      new ApiError("A network error occurred. Please try again.", 504, [
+      new ApiError(
         "A network error occurred. Please try again.",
-      ], {
-        type: "network",
-        retryable: true,
-      }),
+        504,
+        ["A network error occurred. Please try again."],
+        {
+          type: "network",
+          retryable: true,
+        },
+      ),
     );
 
     const { result } = renderHook(() => useSubmitAmendment(), {
@@ -283,5 +282,40 @@ describe("useSubmitAmendment", () => {
     expect(mockShowWarningMessage).toHaveBeenCalledWith(
       expect.stringMatching(/^Submission status unknown · reference /),
     );
+  });
+
+  it("clears a terminal outcome back to idle", async () => {
+    mockSubmitAmendment.mockRejectedValueOnce(
+      new ApiError(
+        "Cargo readiness is no longer valid.",
+        422,
+        ["Cargo readiness is no longer valid."],
+        {
+          type: "validation",
+          fields: {
+            cargoReadinessDate: ["Cargo readiness is no longer valid."],
+          },
+        },
+      ),
+    );
+
+    const { result } = renderHook(() => useSubmitAmendment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submit({ draft, assessmentVersion });
+    });
+
+    expect(result.current.status).toBe("rejected");
+
+    act(() => {
+      result.current.clearOutcome();
+    });
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.submission).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.idempotencyKey).toBeNull();
   });
 });
