@@ -7,6 +7,7 @@ import { PermissionGate } from "@/components/molecules";
 import { DEFAULT_BOOKING_ID } from "@/constants";
 import { clearMockSession } from "@/lib/mockSession";
 import { useAuth } from "@/providers";
+import { toTitleCase } from "@/utils";
 
 const GATED_ACTIONS: Array<{
   permission: Permission;
@@ -63,7 +64,8 @@ function ProtectedWorkspaceShell() {
                   {user.displayName}
                 </h1>
                 <p className="font-mono text-label text-text-2-strong">
-                  {user.id} · {user.roles.join(", ")}
+                  {user.id} ·{" "}
+                  {toTitleCase(user.roles.join(", ")).replace(/-/g, " ")}
                 </p>
               </div>
               <form action={clearMockSession}>
