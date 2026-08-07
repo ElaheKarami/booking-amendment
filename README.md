@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend Assessment
 
-## Getting Started
+A Next.js App Router foundation for the Booking Amendment assessment. The application
+features have not been implemented yet.
 
-First, run the development server:
+## Prerequisites
+
+- Node.js 20 or later
+- Yarn 1.x
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+yarn install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env.local` with the server-only backend origin when a backend is available:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+BACKEND_URL=https://backend.example.com
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`BACKEND_URL` is read only by the BFF route handler. Do not add credentials or access
+tokens to `NEXT_PUBLIC_*` variables.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+yarn dev          # Start the development server
+yarn lint         # Run ESLint
+yarn test         # Run Jest tests
+yarn test:watch   # Run Jest in watch mode
+yarn test:e2e     # Run Playwright tests
+yarn build        # Create a production build
+yarn start        # Start the production server
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000) after starting the development
+server.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Current foundation
 
-## Deploy on Vercel
+- Next.js 16 App Router with strict TypeScript and the `@/` source alias.
+- Tailwind CSS design tokens, IBM Plex Sans, and IBM Plex Mono.
+- TanStack Query root provider for server state.
+- A typed Axios service foundation with response transformers and centralized error
+  normalization.
+- A same-origin BFF route at `src/app/api/[...path]/route.ts`; it reads an HttpOnly
+  access-token cookie on the server and forwards requests to `BACKEND_URL`.
+- Root loading and error boundaries.
+- ESLint, Prettier, Jest with React Testing Library, and Playwright configuration.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Architecture
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The project enforces this data flow:
+
+```text
+Component → Hook → Feature service → apiRequestObject → Axios → BFF → Backend
+```
+
+Backend DTOs must be transformed before they reach UI components. Components and hooks
+must not call Axios, `fetch`, or backend APIs directly.
+
+## Source structure
+
+```text
+src/
+  app/             App Router routes, layouts, and BFF route handlers
+  components/      Atomic UI: atoms, molecules, organisms, templates, skeletons
+  providers/       Root React providers
+  services/        Axios clients, request/response pipeline, feature services
+  hooks/           UI orchestration and TanStack Query hooks
+  schemas/         Zod validation schemas
+  transformers/    Backend DTO ↔ frontend model conversions
+  lib/             Server-only utilities
+  utils/           Pure utility functions
+  constants/       Application constants
+```
+
+Detailed architecture, contracts, patterns, and rules are documented in `docs/`.
+
+## Status
+
+Only the project foundation is in place. The Booking Amendment workspace and all
+associated application features require separate approval and implementation.

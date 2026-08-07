@@ -19,9 +19,9 @@ None
 
 ## Acceptance Criteria
 
-- [ ] Uses the App Router and no `pages/` directory.
-- [ ] Uses the required architecture pipeline: component → hook → service → BFF → backend.
-- [ ] Uses only approved libraries and Yarn.
-- [ ] Has a skeleton for asynchronous page content.
+- [x] Uses the App Router and no `pages/` directory.
+- [x] Uses the required architecture pipeline: component → hook → service → BFF → backend.
+- [x] Uses only approved libraries and Yarn.
+- [x] Has a skeleton for asynchronous page content.
 - [ ] Keeps booking, draft, assessment, and submission state separate.
-- [ ] Does not introduce out-of-scope modules.
+- [x] Does not introduce out-of-scope modules.

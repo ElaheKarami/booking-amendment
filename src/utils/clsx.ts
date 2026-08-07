@@ -1,5 +1,5 @@
-import classnames from "classnames";
+import classnames, { type ArgumentArray } from "classnames";
 
-export default function clsx(...args: any) {
+export default function clsx(...args: ArgumentArray) {
   return classnames(...args);
 }
