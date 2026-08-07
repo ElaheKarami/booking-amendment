@@ -122,10 +122,26 @@ describe("mock booking API", () => {
       search: "",
     });
 
-    expect(results.body).toEqual([
-      expect.objectContaining({ id: "voyage-002" }),
-    ]);
+    expect(results.body).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "voyage-002" })]),
+    );
+    expect(
+      (results.body as VoyageOption[]).some((voyage) => voyage.id === "voyage-001"),
+    ).toBe(false);
     expect(unavailableRoute.body).toEqual([]);
+  });
+
+  it("filters voyage options by search text", () => {
+    const results = getMockVoyages({
+      portOfLoading: "CNSHA",
+      portOfDischarge: "NLRTM",
+      readinessDate: "2026-08-18",
+      search: "pacific",
+    });
+
+    expect(results.body).toEqual([
+      expect.objectContaining({ id: "voyage-002", voyageNumber: "PS027W" }),
+    ]);
   });
 
   it("returns the documented conflict response", () => {

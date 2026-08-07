@@ -20,9 +20,15 @@ export interface SearchSelectProps {
   options: SearchSelectOption[];
   value?: string;
   onValueChange?: (value: string) => void;
+  onQueryChange?: (query: string) => void;
   placeholder?: string;
   label?: string;
   emptyMessage?: string;
+  error?: string;
+  helperText?: string;
+  disabled?: boolean;
+  /** When false, options are not filtered locally (server-driven search). */
+  filterLocally?: boolean;
   id?: string;
   className?: string;
   containerClassName?: string;
@@ -34,9 +40,14 @@ function SearchSelect({
   options,
   value,
   onValueChange,
+  onQueryChange,
   placeholder = "Search…",
   label,
   emptyMessage = "No matches",
+  error,
+  helperText,
+  disabled = false,
+  filterLocally = true,
   id = "search-select",
   className,
   containerClassName,
@@ -46,17 +57,23 @@ function SearchSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const hasError = Boolean(error);
 
   const selected = options.find((o) => o.value === value);
 
   const filtered = useMemo(() => {
+    if (!filterLocally) return options;
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, query]);
+    return options.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.value.toLowerCase().includes(q),
+    );
+  }, [options, query, filterLocally]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || disabled) return;
     const onDocMouseDown = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -64,16 +81,24 @@ function SearchSelect({
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [open]);
+  }, [open, disabled]);
+
+  const updateQuery = (next: string) => {
+    setQuery(next);
+    setActiveIndex(0);
+    onQueryChange?.(next);
+  };
 
   const commit = (opt: SearchSelectOption) => {
-    if (opt.disabled) return;
+    if (disabled || opt.disabled) return;
     onValueChange?.(opt.value);
-    setQuery("");
+    updateQuery("");
     setOpen(false);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (disabled) return;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (!open) setOpen(true);
@@ -90,6 +115,12 @@ function SearchSelect({
     }
   };
 
+  const describedById = error
+    ? `${id}-error`
+    : helperText
+      ? `${id}-helper`
+      : undefined;
+
   const field = (
     <div className={clsx("relative", className)}>
       <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3">
@@ -101,27 +132,42 @@ function SearchSelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
+        aria-invalid={hasError || undefined}
+        aria-describedby={describedById}
         aria-activedescendant={
           open && filtered[activeIndex]
             ? `${listId}-${activeIndex}`
             : undefined
         }
-        className="w-full h-8 rounded-lg border border-border bg-surface pl-8 pr-8 text-label text-text-1 placeholder:text-text-3 transition-colors duration-fast focus:outline-none focus:border-accent focus:shadow-focus-ring"
-        placeholder={selected ? selected.label : placeholder}
+        disabled={disabled}
+        className={clsx(
+          "h-8 w-full rounded-lg border bg-surface pl-8 pr-8 text-label text-text-1 placeholder:text-text-3 transition-colors duration-fast focus:outline-none",
+          {
+            "border-border focus:border-accent focus:shadow-focus-ring":
+              !hasError,
+            "border-error focus:shadow-danger-ring": hasError,
+            "cursor-not-allowed bg-slate-50 opacity-45": disabled,
+          },
+        )}
+        placeholder={selected && !open ? selected.label : placeholder}
         value={open ? query : (selected?.label ?? "")}
         onChange={(e) => {
-          setQuery(e.target.value);
-          setActiveIndex(0);
+          updateQuery(e.target.value);
           if (!open) setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          if (!disabled) {
+            setOpen(true);
+            updateQuery("");
+          }
+        }}
         onKeyDown={onKeyDown}
       />
       <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-3">
         <ChevronDownIcon size={16} />
       </span>
 
-      {open && (
+      {open && !disabled && (
         <ul
           id={listId}
           role="listbox"
@@ -150,7 +196,7 @@ function SearchSelect({
                   className={clsx("cursor-pointer px-3 py-2 text-body-sm", {
                     "bg-slate-75": isActive && !opt.disabled,
                     "text-text-1": !opt.disabled,
-                    "text-text-3 cursor-not-allowed": opt.disabled,
+                    "cursor-not-allowed text-text-3": opt.disabled,
                     "font-semibold": isSelected,
                   })}
                 >
@@ -177,6 +223,15 @@ function SearchSelect({
       ) : (
         field
       )}
+      {error ? (
+        <span id={`${id}-error`} className="text-caption text-error">
+          {error}
+        </span>
+      ) : helperText ? (
+        <span id={`${id}-helper`} className="text-caption text-text-2">
+          {helperText}
+        </span>
+      ) : null}
     </div>
   );
 }

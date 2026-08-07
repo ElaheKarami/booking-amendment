@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Card } from "@/components/atoms";
-import BookingAmendmentDetails from "../BookingAmendmentDetails/BookingAmendmentDetails";
+import { BookingAmendmentDetails } from "@/components/templates";
 import { PermissionGate } from "@/components/molecules";
 import { DEFAULT_BOOKING_ID } from "@/constants";
 import { clearMockSession } from "@/lib/mockSession";

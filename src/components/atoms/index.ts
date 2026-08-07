@@ -32,9 +32,11 @@ export type {
 export { default as Tag } from "./Tag/Tag";
 export type { TagProps } from "./Tag/Tag";
 
+export { default as TextArea } from "./TextArea/TextArea";
+export type { TextAreaProps } from "./TextArea/TextArea";
+
 export { default as TextField } from "./TextField/TextField";
 export type { TextFieldProps } from "./TextField/TextField";
-
 export { default as Tooltip } from "./Tooltip/Tooltip";
 export type { TooltipPlacement, TooltipProps } from "./Tooltip/Tooltip";
 

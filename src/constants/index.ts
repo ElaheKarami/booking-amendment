@@ -1,3 +1,8 @@
+export {
+  DISCHARGE_PORT_OPTIONS,
+  EQUIPMENT_TYPE_OPTIONS,
+  SPECIAL_INSTRUCTIONS_MAX_LENGTH,
+} from "./AmendmentFormMockData";
 export { DEFAULT_BOOKING_ID } from "./Booking";
 export {
   ACCESS_TOKEN_COOKIE,

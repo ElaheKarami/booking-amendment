@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import BookingAmendmentDetails from "./BookingAmendmentDetails";
 import AuthProvider from "@/providers/AuthProvider";
@@ -6,6 +7,17 @@ import { ApiError } from "@/services/errorHandling";
 
 jest.mock("@/hooks", () => ({
   useBooking: jest.fn(),
+  useVoyages: jest.fn(() => ({
+    data: [
+      {
+        id: "voyage-001",
+        vesselName: "MV Atlantic Horizon",
+        voyageNumber: "AH026W",
+        supports40HC: true,
+      },
+    ],
+    isFetching: false,
+  })),
 }));
 
 const mockUseBooking = jest.mocked(useBooking);
@@ -39,10 +51,16 @@ const sampleBooking: Booking = {
 };
 
 function renderDetails() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
   return render(
-    <AuthProvider user={opsUser}>
-      <BookingAmendmentDetails bookingId="booking-001" onBack={jest.fn()} />
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider user={opsUser}>
+        <BookingAmendmentDetails bookingId="booking-001" onBack={jest.fn()} />
+      </AuthProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -58,7 +76,7 @@ describe("BookingAmendmentDetails", () => {
       isError: false,
       error: null,
       refetch: jest.fn(),
-    } as ReturnType<typeof useBooking>);
+    } as unknown as ReturnType<typeof useBooking>);
 
     renderDetails();
 
@@ -67,14 +85,14 @@ describe("BookingAmendmentDetails", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the booking header after a successful load", async () => {
+  it("renders the booking header and editable amendment form after load", () => {
     mockUseBooking.mockReturnValue({
       data: sampleBooking,
       isLoading: false,
       isError: false,
       error: null,
       refetch: jest.fn(),
-    } as ReturnType<typeof useBooking>);
+    } as unknown as ReturnType<typeof useBooking>);
 
     renderDetails();
 
@@ -82,11 +100,17 @@ describe("BookingAmendmentDetails", () => {
     expect(screen.getByText("Confirmed")).toBeInTheDocument();
     expect(screen.getByText("v7")).toBeInTheDocument();
     expect(screen.getByText(/UTC/)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("NLRTM")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("AH026W")).toBeInTheDocument();
+    expect(screen.getByLabelText("Port of discharge")).toHaveValue(
+      "NLRTM — Rotterdam",
+    );
+    expect(screen.getByLabelText("Cargo readiness date")).toHaveValue(
+      "2026-08-18",
+    );
     expect(
-      screen.getByDisplayValue("2 × 20GP, 1 × 40HC"),
-    ).toBeInTheDocument();
+      screen.getByLabelText("Special handling instructions"),
+    ).toHaveValue("Keep dry.");
+    expect(screen.getAllByLabelText("Equipment type")).toHaveLength(2);
+    expect(screen.queryByLabelText("Customer")).not.toBeInTheDocument();
   });
 
   it("shows a not-found state for missing bookings", () => {
@@ -98,7 +122,7 @@ describe("BookingAmendmentDetails", () => {
         "The requested booking could not be found.",
       ]),
       refetch: jest.fn(),
-    } as ReturnType<typeof useBooking>);
+    } as unknown as ReturnType<typeof useBooking>);
 
     renderDetails();
 
@@ -117,7 +141,7 @@ describe("BookingAmendmentDetails", () => {
         "Unable to load the booking.",
       ]),
       refetch: jest.fn(),
-    } as ReturnType<typeof useBooking>);
+    } as unknown as ReturnType<typeof useBooking>);
 
     renderDetails();
 
