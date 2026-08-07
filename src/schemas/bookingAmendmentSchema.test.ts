@@ -68,7 +68,11 @@ describe("bookingAmendmentSchema", () => {
 
   it("rejects 40HC equipment when the selected voyage does not support it", () => {
     const schema = createBookingAmendmentSchema([
-      { id: "voyage-002", supports40HC: false },
+      {
+        id: "voyage-002",
+        cutOffDate: "2026-08-24",
+        supports40HC: false,
+      },
     ]);
 
     const result = schema.safeParse({
@@ -81,6 +85,29 @@ describe("bookingAmendmentSchema", () => {
       expect(result.error.issues[0]?.message).toBe(
         "The selected voyage does not support 40HC equipment.",
       );
+    }
+  });
+
+  it("rejects cargo readiness after the selected voyage cut-off date", () => {
+    const schema = createBookingAmendmentSchema([
+      {
+        id: "voyage-001",
+        cutOffDate: "2026-08-19",
+        supports40HC: true,
+      },
+    ]);
+
+    const result = schema.safeParse({
+      ...validDraft,
+      cargoReadinessDate: "2026-08-20",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]).toMatchObject({
+        path: ["cargoReadinessDate"],
+        message: "Cargo readiness must be on or before the voyage cut-off date.",
+      });
     }
   });
 });

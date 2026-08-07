@@ -27,6 +27,9 @@ export interface SearchSelectProps {
   error?: string;
   helperText?: string;
   disabled?: boolean;
+  isLoading?: boolean;
+  loadingMessage?: string;
+  loadError?: string;
   /** When false, options are not filtered locally (server-driven search). */
   filterLocally?: boolean;
   id?: string;
@@ -47,6 +50,9 @@ function SearchSelect({
   error,
   helperText,
   disabled = false,
+  isLoading = false,
+  loadingMessage = "Loading options…",
+  loadError,
   filterLocally = true,
   id = "search-select",
   className,
@@ -173,7 +179,15 @@ function SearchSelect({
           role="listbox"
           className="absolute z-dropdown mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-surface py-1 shadow-elevation-3"
         >
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <li role="status" className="px-3 py-2 text-body-sm text-text-2">
+              {loadingMessage}
+            </li>
+          ) : loadError ? (
+            <li role="alert" className="px-3 py-2 text-body-sm text-error">
+              {loadError}
+            </li>
+          ) : filtered.length === 0 ? (
             <li className="px-3 py-2 text-body-sm text-text-2">
               {emptyMessage}
             </li>

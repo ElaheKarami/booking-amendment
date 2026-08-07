@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useVoyages } from "@/hooks";
 import AmendmentForm from "./AmendmentForm";
 import type { BookingAmendmentFormValues } from "@/schemas/bookingAmendmentSchema";
 
@@ -23,6 +24,8 @@ jest.mock("@/hooks", () => ({
     isFetching: false,
   })),
 }));
+
+const mockUseVoyages = jest.mocked(useVoyages);
 
 const defaultValues: BookingAmendmentFormValues = {
   bookingId: "booking-001",
@@ -61,6 +64,10 @@ function renderForm(
 }
 
 describe("AmendmentForm", () => {
+  beforeEach(() => {
+    mockUseVoyages.mockClear();
+  });
+
   it("renders only the editable amendment fields", () => {
     renderForm();
 
@@ -132,5 +139,29 @@ describe("AmendmentForm", () => {
 
     expect(requestDiscard).toHaveBeenCalledTimes(1);
     expect(instructions).toHaveValue("Keep dry and upright.");
+  });
+
+  it("debounces voyage search requests", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const voyageSearch = screen.getByLabelText("Planned voyage");
+    await user.click(voyageSearch);
+    await user.type(voyageSearch, "pacific");
+
+    expect(mockUseVoyages).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "" }),
+      true,
+    );
+
+    await waitFor(
+      () => {
+        expect(mockUseVoyages).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "pacific" }),
+          true,
+        );
+      },
+      { timeout: 1_000 },
+    );
   });
 });

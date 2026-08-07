@@ -73,6 +73,7 @@ function AmendmentForm({
     control,
     register,
     reset,
+    trigger,
     formState: { errors, isDirty },
   } = useForm<BookingAmendmentFormValues>({
     resolver,
@@ -88,6 +89,7 @@ function AmendmentForm({
   const portOfDischarge = useWatch({ control, name: "portOfDischarge" });
   const cargoReadinessDate = useWatch({ control, name: "cargoReadinessDate" });
   const voyageId = useWatch({ control, name: "voyageId" });
+  const containers = useWatch({ control, name: "containers" });
   const specialInstructions = useWatch({
     control,
     name: "specialInstructions",
@@ -100,16 +102,24 @@ function AmendmentForm({
     search: debouncedVoyageQuery,
   };
 
-  const { data: voyages = [], isFetching: isFetchingVoyages } = useVoyages(
-    voyageSearch,
-    !disabled,
-  );
+  const {
+    data: voyages = [],
+    isFetching: isFetchingVoyages,
+    isError: isVoyageError,
+    error: voyageError,
+  } = useVoyages(voyageSearch, !disabled);
 
   useEffect(() => {
     voyages.forEach((voyage) => {
       voyagesByIdRef.current.set(voyage.id, voyage);
     });
-  }, [voyages]);
+
+    void trigger(["voyageId", "cargoReadinessDate"]);
+  }, [trigger, voyages]);
+
+  useEffect(() => {
+    void trigger(["voyageId", "cargoReadinessDate"]);
+  }, [cargoReadinessDate, containers, trigger, voyageId]);
 
   const dischargeOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> =
@@ -226,6 +236,14 @@ function AmendmentForm({
                 isFetchingVoyages ? "Loading voyages…" : "Search voyages…"
               }
               emptyMessage="No voyages match the current search, ports, and readiness date."
+              isLoading={isFetchingVoyages}
+              loadingMessage="Loading voyages…"
+              loadError={
+                isVoyageError
+                  ? voyageError.message || "Unable to load voyages."
+                  : undefined
+              }
+              filterLocally={false}
               disabled={disabled}
               error={errors.voyageId?.message}
             />

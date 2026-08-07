@@ -16,7 +16,10 @@ const containerRequirementSchema = z.object({
     .gt(0, "Container quantity must be greater than zero."),
 });
 
-type VoyageConstraint = Pick<VoyageOption, "id" | "supports40HC">;
+type VoyageConstraint = Pick<
+  VoyageOption,
+  "id" | "cutOffDate" | "supports40HC"
+>;
 
 function addDuplicateEquipmentIssues(
   draft: {
@@ -64,6 +67,24 @@ function addVoyageEquipmentIssues(
   }
 }
 
+function addVoyageCutOffIssues(
+  draft: {
+    voyageId: string;
+    cargoReadinessDate: string;
+  },
+  voyages: VoyageConstraint[],
+  ctx: z.RefinementCtx,
+) {
+  const voyage = voyages.find((item) => item.id === draft.voyageId);
+  if (!voyage || draft.cargoReadinessDate <= voyage.cutOffDate) return;
+
+  ctx.addIssue({
+    code: "custom",
+    path: ["cargoReadinessDate"],
+    message: "Cargo readiness must be on or before the voyage cut-off date.",
+  });
+}
+
 export const bookingAmendmentSchema = z
   .object({
     bookingId: z.string().min(1),
@@ -93,6 +114,7 @@ export function createBookingAmendmentSchema(
 ) {
   return bookingAmendmentSchema.superRefine((draft, ctx) => {
     addVoyageEquipmentIssues(draft, voyages, ctx);
+    addVoyageCutOffIssues(draft, voyages, ctx);
   });
 }
 
