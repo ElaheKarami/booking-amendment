@@ -69,7 +69,6 @@ Backend Services
 - Lucide React
 - date-fns
 - Redux
-- Zustand
 
 ## Testing
 

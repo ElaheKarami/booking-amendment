@@ -13,7 +13,7 @@ Do not introduce:
 - jQuery
 - Moment.js
 
-Reason: inconsistent architecture, bundle size increase, design inconsistency, duplicate patterns with the approved stack (Axios, React Hook Form, Zod, TanStack Query, classnames, Lucide React, date-fns, Redux, Zustand).
+Reason: inconsistent architecture, bundle size increase, design inconsistency, duplicate patterns with the approved stack (Axios, React Hook Form, Zod, TanStack Query, classnames, Lucide React, date-fns, Redux).
 
 ## Inside UI components
 

@@ -103,4 +103,4 @@ Do not report misleading success. A cached previous assessment is not current so
 - Comparison mode
 - Temporary UI status
 
-Keep server entities from being unnecessarily duplicated in a global store. Local React state is recommended; Zustand or Redux Toolkit is used only where justified.
+Keep server entities from being unnecessarily duplicated in a global store. Local React state is recommended; Zustand is used only where justified.
