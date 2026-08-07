@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import AuthProvider from "@/providers/AuthProvider";
 import {
   assessAmendment,
+  getBooking,
+  getSubmissionStatus,
   submitAmendment,
 } from "@/services/bookingAmendmentService/bookingAmendmentService";
 import { ApiError } from "@/services/errorHandling";
@@ -11,6 +13,8 @@ import BookingAmendmentWorkspace from "./BookingAmendmentWorkspace";
 
 jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   assessAmendment: jest.fn(),
+  getBooking: jest.fn(),
+  getSubmissionStatus: jest.fn(),
   submitAmendment: jest.fn(),
   getVoyages: jest.fn().mockResolvedValue([
     {
@@ -27,6 +31,8 @@ jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
 }));
 
 const mockAssessAmendment = jest.mocked(assessAmendment);
+const mockGetBooking = jest.mocked(getBooking);
+const mockGetSubmissionStatus = jest.mocked(getSubmissionStatus);
 const mockSubmitAmendment = jest.mocked(submitAmendment);
 
 const opsUser: CurrentUser = {
@@ -91,7 +97,12 @@ const blockingImpact: AmendmentImpact = {
   ],
 };
 
-function renderWorkspace() {
+function renderWorkspace(
+  options: {
+    onReturnToBooking?: () => void;
+    requestDiscard?: (onConfirm: () => void) => void;
+  } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -106,7 +117,10 @@ function renderWorkspace() {
           booking={booking}
           canEdit
           canSubmit
-          requestDiscard={(onConfirm) => onConfirm()}
+          onReturnToBooking={options.onReturnToBooking ?? jest.fn()}
+          requestDiscard={
+            options.requestDiscard ?? ((onConfirm) => onConfirm())
+          }
         />
       </AuthProvider>
     </QueryClientProvider>,
@@ -138,6 +152,8 @@ async function recalculateToValid(user: ReturnType<typeof userEvent.setup>) {
 describe("BookingAmendmentWorkspace", () => {
   beforeEach(() => {
     mockAssessAmendment.mockReset();
+    mockGetBooking.mockReset();
+    mockGetSubmissionStatus.mockReset();
     mockSubmitAmendment.mockReset();
     setNavigatorOnline(true);
   });
@@ -420,6 +436,117 @@ describe("BookingAmendmentWorkspace", () => {
     expect(screen.getByLabelText("Special handling instructions")).toHaveValue(
       "Keep dry.",
     );
+    expect(
+      screen.getByRole("button", { name: "Load latest booking" }),
+    ).toBeInTheDocument();
+  });
+
+  it("loads the latest booking version while preserving draft fields", async () => {
+    const user = userEvent.setup();
+    const requestDiscard = jest.fn((onConfirm: () => void) => onConfirm());
+    mockSubmitAmendment.mockRejectedValueOnce(
+      new ApiError(
+        "The booking was modified by another user.",
+        409,
+        ["The booking was modified by another user."],
+        { type: "conflict", currentVersion: 8 },
+      ),
+    );
+    mockGetBooking.mockResolvedValueOnce({
+      ...booking,
+      version: 8,
+      lastUpdated: "2026-08-07T09:00:00.000Z",
+      specialInstructions: "Changed by another user.",
+    });
+
+    renderWorkspace({ requestDiscard });
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Load latest booking" }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Load latest booking" }));
+
+    expect(requestDiscard).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockGetBooking).toHaveBeenCalledWith("booking-001", {
+        signal: expect.any(AbortSignal),
+      });
+    });
+    expect(screen.getByLabelText("Special handling instructions")).toHaveValue(
+      "Keep dry.",
+    );
+    expect(screen.getByText("Outdated result")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This assessment no longer matches the current draft. Recalculate before submitting.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Draft changed — recalculate before submitting"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Load latest booking" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers unknown-result recovery actions without treating timeout as failure", async () => {
+    const user = userEvent.setup();
+    const onReturnToBooking = jest.fn();
+    mockSubmitAmendment.mockRejectedValueOnce(
+      new ApiError(
+        "A network error occurred. Please try again.",
+        504,
+        ["A network error occurred. Please try again."],
+        { type: "network", retryable: true },
+      ),
+    );
+    mockGetSubmissionStatus.mockResolvedValueOnce({
+      id: "submission-001",
+      status: "submitted",
+    });
+
+    renderWorkspace({ onReturnToBooking });
+    await recalculateToValid(user);
+
+    await user.click(screen.getByRole("button", { name: "Submit amendment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Submission status unknown · reference /),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText(/Amendment rejected/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Check status" }));
+
+    await waitFor(() => {
+      expect(mockGetSubmissionStatus).toHaveBeenCalledWith(
+        expect.any(String),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText("Checked status · submission-001 · submitted"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Return to booking" }));
+    expect(onReturnToBooking).toHaveBeenCalled();
+
+    expect(
+      screen.getByRole("button", { name: "Retry submission" }),
+    ).toBeEnabled();
   });
 
   it("clears submission status feedback when the draft changes", async () => {

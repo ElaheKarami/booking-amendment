@@ -2,6 +2,7 @@ import {
   assessMockAmendment,
   getMockBooking,
   getMockLatestBooking,
+  getMockSubmissionStatus,
   getMockVoyages,
   submitMockAmendment,
 } from "./mockBookingApi";
@@ -163,6 +164,30 @@ describe("mock booking API", () => {
         currentVersion: 7,
         message: "The booking was modified by another user.",
       },
+    });
+  });
+
+  it("resolves submission status by idempotency key or submission id", () => {
+    const command: SubmitAmendmentCommand = {
+      bookingId: "booking-001",
+      baseVersion: 7,
+      assessmentVersion: "assessment-7-voyage-001",
+      amendment: draft,
+      idempotencyKey: "status-lookup-key",
+    };
+
+    const submitted = submitMockAmendment(command);
+    if ("type" in submitted.body || "code" in submitted.body) {
+      throw new Error("Expected a submission response.");
+    }
+
+    expect(getMockSubmissionStatus("status-lookup-key")).toEqual({
+      status: 200,
+      body: { id: submitted.body.id, status: "submitted" },
+    });
+    expect(getMockSubmissionStatus(submitted.body.id)).toEqual({
+      status: 200,
+      body: { id: submitted.body.id, status: "submitted" },
     });
   });
 });

@@ -436,7 +436,10 @@ export function submitMockAmendment(
 export function getMockSubmissionStatus(
   id: string,
 ): MockApiResult<AmendmentSubmissionStatus> {
-  const submission = [...submissions.values()].find((item) => item.id === id);
+  const submission =
+    submissions.get(id) ??
+    [...submissions.values()].find((item) => item.id === id);
+
   if (!submission) {
     return errorResult(404, {
       type: "business-rule",

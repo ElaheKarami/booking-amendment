@@ -21,6 +21,6 @@
 
 ## Acceptance Criteria
 
-- [ ] Conflict preserves the draft and clearly signals recalculation is required.
-- [ ] Unknown result is not shown as a definitive failure.
-- [ ] Retry uses safe idempotency-key handling.
+- [x] Conflict preserves the draft and clearly signals recalculation is required.
+- [x] Unknown result is not shown as a definitive failure.
+- [x] Retry uses safe idempotency-key handling.

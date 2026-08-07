@@ -5,7 +5,7 @@ import { assessAmendment } from "@/services/bookingAmendmentService/bookingAmend
 import { ApiError } from "@/services/errorHandling";
 import { useImpactAssessment } from "./useImpactAssessment";
 
-jest.mock("@/services/bookingAmendmentService", () => ({
+jest.mock("@/services/bookingAmendmentService/bookingAmendmentService", () => ({
   assessAmendment: jest.fn(),
 }));
 
@@ -137,6 +137,32 @@ describe("useImpactAssessment", () => {
     expect(result.current.status).toBe("stale");
     expect(result.current.impact).toEqual(impact);
     expect(result.current.canSubmitAssessment).toBe(false);
+  });
+
+  it("marks the retained impact stale when markStale is called", async () => {
+    mockAssessAmendment.mockResolvedValueOnce(impact);
+
+    const { result } = renderHook(() => useImpactAssessment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.recalculate(draft);
+    });
+
+    act(() => {
+      result.current.markStale();
+    });
+
+    expect(result.current.status).toBe("stale");
+    expect(result.current.impact).toEqual(impact);
+    expect(result.current.canSubmitAssessment).toBe(false);
+
+    act(() => {
+      result.current.syncDraft(draft);
+    });
+
+    expect(result.current.status).toBe("stale");
   });
 
   it("restores valid when the draft returns to the assessed fingerprint", async () => {

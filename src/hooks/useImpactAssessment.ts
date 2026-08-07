@@ -72,6 +72,27 @@ export function useImpactAssessment() {
     [abortActiveRequest],
   );
 
+  const markStale = useCallback(() => {
+    if (activeRequestRef.current) {
+      abortActiveRequest();
+    }
+
+    if (!impactRef.current) {
+      assessedFingerprintRef.current = null;
+      setStatus("not-calculated");
+      setError(null);
+      return;
+    }
+
+    // Keep the last result visible, but invalidate the assessed fingerprint so
+    // later syncDraft calls cannot restore "valid" until recalculate succeeds.
+    if (assessedFingerprintRef.current) {
+      assessedFingerprintRef.current = `invalidated:${assessedFingerprintRef.current}`;
+    }
+    setStatus("stale");
+    setError(null);
+  }, [abortActiveRequest]);
+
   const recalculate = useCallback(
     async (draft: BookingAmendmentDraft) => {
       abortActiveRequest();
@@ -136,6 +157,7 @@ export function useImpactAssessment() {
     hasBlockingValidation,
     canSubmitAssessment: status === "valid" && !hasBlockingValidation,
     syncDraft,
+    markStale,
     recalculate,
   };
 }

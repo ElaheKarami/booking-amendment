@@ -92,6 +92,7 @@ function BookingAmendmentDetails({
         canEdit={canEdit}
         canSubmit={canSubmit}
         onDirtyChange={setIsDirty}
+        onReturnToBooking={handleBack}
         requestDiscard={requestDiscard}
       />
       <Modal

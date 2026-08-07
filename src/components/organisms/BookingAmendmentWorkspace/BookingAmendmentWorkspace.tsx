@@ -5,8 +5,17 @@ import { Badge, Button, Card } from "@/components/atoms";
 import { PermissionGate } from "@/components/molecules";
 import AmendmentForm from "../AmendmentForm/AmendmentForm";
 import ImpactAssessmentPanel from "../ImpactAssessmentPanel/ImpactAssessmentPanel";
-import { useImpactAssessment, useSubmitAmendment } from "@/hooks";
+import {
+  useImpactAssessment,
+  useReloadBooking,
+  useSubmissionStatus,
+  useSubmitAmendment,
+} from "@/hooks";
 import type { BookingAmendmentFormValues } from "@/schemas/bookingAmendmentSchema";
+import {
+  reportApiError,
+  showWarningMessage,
+} from "@/services/errorHandling";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
 import { amendmentDraftFingerprint } from "@/utils/amendmentDraftFingerprint";
 
@@ -15,6 +24,7 @@ export interface BookingAmendmentWorkspaceProps {
   canEdit: boolean;
   canSubmit: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
+  onReturnToBooking: () => void;
   requestDiscard: (onConfirm: () => void) => void;
 }
 
@@ -72,7 +82,7 @@ function submissionFeedback(
         tone: "warning",
         label:
           errorMessage ??
-          "Booking changed by another user. Draft preserved — recalculate before retrying.",
+          "Booking changed by another user. Draft preserved — load latest and recalculate before retrying.",
       };
     case "unknown":
       return {
@@ -96,6 +106,7 @@ function BookingAmendmentWorkspace({
   canEdit,
   canSubmit,
   onDirtyChange,
+  onReturnToBooking,
   requestDiscard,
 }: BookingAmendmentWorkspaceProps) {
   const [formBaseline, setFormBaseline] = useState(() =>
@@ -104,7 +115,9 @@ function BookingAmendmentWorkspace({
   const [baselineKey, setBaselineKey] = useState(0);
   const [draft, setDraft] = useState<BookingAmendmentDraft>(formBaseline);
   const [isOnline, setIsOnline] = useState(readNavigatorOnline);
+  const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const draftFingerprintRef = useRef(amendmentDraftFingerprint(formBaseline));
+  const reloadBooking = useReloadBooking();
   const {
     status,
     impact,
@@ -112,6 +125,7 @@ function BookingAmendmentWorkspace({
     isCalculating,
     canSubmitAssessment,
     syncDraft,
+    markStale,
     recalculate,
   } = useImpactAssessment();
   const {
@@ -123,6 +137,12 @@ function BookingAmendmentWorkspace({
     submit,
     clearOutcome,
   } = useSubmitAmendment();
+  const {
+    status: checkedSubmissionStatus,
+    isChecking,
+    checkStatus,
+    clearStatus,
+  } = useSubmissionStatus();
 
   useEffect(() => {
     const syncOnlineStatus = () => setIsOnline(readNavigatorOnline());
@@ -149,9 +169,10 @@ function BookingAmendmentWorkspace({
       if (fingerprint !== draftFingerprintRef.current) {
         draftFingerprintRef.current = fingerprint;
         clearOutcome();
+        clearStatus();
       }
     },
-    [clearOutcome, syncDraft],
+    [clearOutcome, clearStatus, syncDraft],
   );
 
   const handleRecalculate = useCallback(() => {
@@ -172,6 +193,66 @@ function BookingAmendmentWorkspace({
     setBaselineKey((key) => key + 1);
     onDirtyChange?.(false);
   }, [draft, impact, onDirtyChange, submit]);
+
+  const applyLatestBooking = useCallback(async () => {
+    setIsLoadingLatest(true);
+
+    try {
+      const latest = await reloadBooking(booking.id);
+      const conflictVersion =
+        submissionError?.applicationError.type === "conflict"
+          ? submissionError.applicationError.currentVersion
+          : undefined;
+      const nextVersion = Math.max(
+        latest.version,
+        conflictVersion ?? latest.version,
+      );
+      const nextDraft: BookingAmendmentDraft = {
+        ...draft,
+        bookingId: latest.id,
+        baseVersion: nextVersion,
+      };
+
+      setFormBaseline((previous) => ({
+        ...previous,
+        bookingId: latest.id,
+        baseVersion: nextVersion,
+      }));
+      setDraft(nextDraft);
+      draftFingerprintRef.current = amendmentDraftFingerprint(nextDraft);
+      syncDraft(nextDraft);
+      markStale();
+      clearOutcome();
+      clearStatus();
+      showWarningMessage(
+        `Loaded booking version ${nextVersion}. Recalculate before submitting.`,
+      );
+    } catch (caught) {
+      reportApiError(caught, { forceShow: true });
+    } finally {
+      setIsLoadingLatest(false);
+    }
+  }, [
+    booking.id,
+    clearOutcome,
+    clearStatus,
+    draft,
+    markStale,
+    reloadBooking,
+    submissionError,
+    syncDraft,
+  ]);
+
+  const handleLoadLatestBooking = useCallback(() => {
+    requestDiscard(() => {
+      void applyLatestBooking();
+    });
+  }, [applyLatestBooking, requestDiscard]);
+
+  const handleCheckStatus = useCallback(() => {
+    if (!idempotencyKey) return;
+    void checkStatus(idempotencyKey);
+  }, [checkStatus, idempotencyKey]);
 
   const feedback = assessmentFeedback(
     status,
@@ -214,7 +295,7 @@ function BookingAmendmentWorkspace({
               baselineKey={baselineKey}
               portOfLoading={booking.portOfLoading}
               currentVoyageLabel={`${booking.vesselName} · ${booking.voyageNumber}`}
-              disabled={!canEdit || isSubmitting}
+              disabled={!canEdit || isSubmitting || isLoadingLatest}
               onDirtyChange={onDirtyChange}
               onDraftChange={handleDraftChange}
               requestDiscard={requestDiscard}
@@ -260,8 +341,46 @@ function BookingAmendmentWorkspace({
               {resultFeedback.label}
             </Badge>
           )}
+          {checkedSubmissionStatus && (
+            <Badge tone="info" aria-live="polite">
+              Checked status · {checkedSubmissionStatus.id} ·{" "}
+              {checkedSubmissionStatus.status}
+            </Badge>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {submissionStatus === "conflict" && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isLoadingLatest || isSubmitting}
+              isLoading={isLoadingLatest}
+              onClick={handleLoadLatestBooking}
+            >
+              Load latest booking
+            </Button>
+          )}
+          {submissionStatus === "unknown" && (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!idempotencyKey || isChecking || isSubmitting}
+                isLoading={isChecking}
+                onClick={handleCheckStatus}
+              >
+                Check status
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isSubmitting}
+                onClick={onReturnToBooking}
+              >
+                Return to booking
+              </Button>
+            </>
+          )}
           <PermissionGate
             permission="editAmendment"
             fallback={
@@ -273,7 +392,7 @@ function BookingAmendmentWorkspace({
             <Button
               type="button"
               variant="secondary"
-              disabled={!canEdit || isCalculating || isSubmitting}
+              disabled={!canEdit || isCalculating || isSubmitting || isLoadingLatest}
               isLoading={isCalculating}
               onClick={handleRecalculate}
             >
@@ -297,7 +416,7 @@ function BookingAmendmentWorkspace({
                 void handleSubmit();
               }}
             >
-              Submit amendment
+              {submissionStatus === "unknown" ? "Retry submission" : "Submit amendment"}
             </Button>
           </PermissionGate>
         </div>
