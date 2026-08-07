@@ -29,6 +29,7 @@ import {
 } from "@/schemas/bookingAmendmentSchema";
 
 const VOYAGE_SEARCH_DEBOUNCE_MS = 300;
+const EMPTY_VOYAGES: VoyageOption[] = [];
 
 export interface AmendmentFormProps {
   defaultValues: BookingAmendmentFormValues;
@@ -95,31 +96,58 @@ function AmendmentForm({
     name: "specialInstructions",
   });
 
-  const voyageSearch: VoyageSearch = {
-    portOfLoading,
-    portOfDischarge: portOfDischarge ?? "",
-    readinessDate: cargoReadinessDate ?? "",
-    search: debouncedVoyageQuery,
-  };
+  // Primitive key — avoid depending on the containers array reference from useWatch,
+  // which changes after trigger() and would infinite-loop revalidation effects.
+  const containerEquipmentKey = useMemo(
+    () =>
+      (containers ?? [])
+        .map((container) => container.equipmentType)
+        .join("|"),
+    [containers],
+  );
+
+  const voyageSearch = useMemo<VoyageSearch>(
+    () => ({
+      portOfLoading,
+      portOfDischarge: portOfDischarge ?? "",
+      readinessDate: cargoReadinessDate ?? "",
+      search: debouncedVoyageQuery,
+    }),
+    [
+      portOfLoading,
+      portOfDischarge,
+      cargoReadinessDate,
+      debouncedVoyageQuery,
+    ],
+  );
 
   const {
-    data: voyages = [],
+    data: voyages = EMPTY_VOYAGES,
     isFetching: isFetchingVoyages,
     isError: isVoyageError,
     error: voyageError,
   } = useVoyages(voyageSearch, !disabled);
 
+  const voyageOptionsKey = useMemo(
+    () => voyages.map((voyage) => voyage.id).join("|"),
+    [voyages],
+  );
+
   useEffect(() => {
     voyages.forEach((voyage) => {
       voyagesByIdRef.current.set(voyage.id, voyage);
     });
-
-    void trigger(["voyageId", "cargoReadinessDate"]);
-  }, [trigger, voyages]);
+  }, [voyages]);
 
   useEffect(() => {
     void trigger(["voyageId", "cargoReadinessDate"]);
-  }, [cargoReadinessDate, containers, trigger, voyageId]);
+  }, [
+    cargoReadinessDate,
+    containerEquipmentKey,
+    trigger,
+    voyageId,
+    voyageOptionsKey,
+  ]);
 
   const dischargeOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> =
@@ -170,6 +198,14 @@ function AmendmentForm({
     currentVoyageLabel,
     debouncedVoyageQuery,
   ]);
+
+  const selectedVoyage = useMemo(() => {
+    if (!voyageId) return undefined;
+    return (
+      voyages.find((voyage) => voyage.id === voyageId) ??
+      voyagesByIdRef.current.get(voyageId)
+    );
+  }, [voyageId, voyages]);
 
   const usedEquipment = new Set(fields.map((field) => field.equipmentType));
   const nextEquipment =
@@ -246,6 +282,11 @@ function AmendmentForm({
               filterLocally={false}
               disabled={disabled}
               error={errors.voyageId?.message}
+              helperText={
+                selectedVoyage
+                  ? `Cut-off date: ${selectedVoyage.cutOffDate}`
+                  : undefined
+              }
             />
           )}
         />

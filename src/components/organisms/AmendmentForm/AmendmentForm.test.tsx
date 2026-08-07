@@ -12,12 +12,14 @@ jest.mock("@/hooks", () => ({
         id: "voyage-001",
         vesselName: "MV Atlantic Horizon",
         voyageNumber: "AH026W",
+        cutOffDate: "2026-08-19",
         supports40HC: true,
       },
       {
         id: "voyage-002",
         vesselName: "MV Pacific Star",
         voyageNumber: "PS027W",
+        cutOffDate: "2026-08-24",
         supports40HC: false,
       },
     ],
@@ -80,6 +82,12 @@ describe("AmendmentForm", () => {
     expect(screen.getByText("Container quantities")).toBeInTheDocument();
     expect(screen.queryByLabelText("Customer")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Port of loading")).not.toBeInTheDocument();
+  });
+
+  it("shows the selected voyage cut-off as helper text", () => {
+    renderForm();
+
+    expect(screen.getByText("Cut-off date: 2026-08-19")).toBeInTheDocument();
   });
 
   it("adds and removes container rows", async () => {
