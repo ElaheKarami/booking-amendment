@@ -87,7 +87,33 @@ describe("useImpactAssessment", () => {
     );
     expect(result.current.status).toBe("valid");
     expect(result.current.impact).toEqual(impact);
+    expect(result.current.hasBlockingValidation).toBe(false);
     expect(result.current.canSubmitAssessment).toBe(true);
+  });
+
+  it("disables submit eligibility when a valid assessment has error-severity validations", async () => {
+    mockAssessAmendment.mockResolvedValueOnce({
+      ...impact,
+      validations: [
+        {
+          field: "voyageId",
+          severity: "error",
+          message: "Voyage does not support 40HC.",
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useImpactAssessment(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.recalculate(draft);
+    });
+
+    expect(result.current.status).toBe("valid");
+    expect(result.current.hasBlockingValidation).toBe(true);
+    expect(result.current.canSubmitAssessment).toBe(false);
   });
 
   it("marks a valid assessment stale when the draft changes and keeps the result", async () => {

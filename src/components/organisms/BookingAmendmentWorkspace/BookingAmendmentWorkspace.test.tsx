@@ -60,11 +60,30 @@ const impact: AmendmentImpact = {
     revisedTotal: 5_100,
     difference: 300,
     currency: "USD",
-    items: [],
+    items: [
+      {
+        code: "OCEAN",
+        description: "Ocean freight",
+        previousAmount: 4_800,
+        revisedAmount: 5_100,
+      },
+    ],
   },
   approvals: [],
   validations: [],
   assessmentVersion: "assessment-7-voyage-001",
+};
+
+const blockingImpact: AmendmentImpact = {
+  ...impact,
+  schedule: { feasible: false, warnings: ["Not feasible for cut-off."] },
+  validations: [
+    {
+      field: "voyageId",
+      severity: "error",
+      message: "The selected voyage does not support 40HC equipment.",
+    },
+  ],
 };
 
 function renderWorkspace() {
@@ -100,6 +119,7 @@ describe("BookingAmendmentWorkspace", () => {
     expect(
       screen.getByText("Not calculated — run Recalculate to assess impact"),
     ).toBeInTheDocument();
+    expect(screen.getByText("No impact calculated")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeDisabled();
@@ -130,9 +150,32 @@ describe("BookingAmendmentWorkspace", () => {
       }),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+    expect(screen.getByText("Feasible")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getByText("Increase")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeEnabled();
+  });
+
+  it("keeps submit disabled when the assessment has a blocking validation", async () => {
+    const user = userEvent.setup();
+    mockAssessAmendment.mockResolvedValueOnce(blockingImpact);
+
+    renderWorkspace();
+
+    await user.click(screen.getByRole("button", { name: "Recalculate" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("The selected voyage does not support 40HC equipment."),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Blocking")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit amendment" }),
+    ).toBeDisabled();
   });
 
   it("disables submit while calculating", async () => {
@@ -211,6 +254,7 @@ describe("BookingAmendmentWorkspace", () => {
         screen.getByText("Draft changed — recalculate before submitting"),
       ).toBeInTheDocument();
     });
+    expect(screen.getByText("Outdated result")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Submit amendment" }),
     ).toBeDisabled();

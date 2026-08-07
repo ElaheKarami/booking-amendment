@@ -131,12 +131,17 @@ export function useImpactAssessment() {
     [abortActiveRequest, mutateAsync],
   );
 
+  const hasBlockingValidation = Boolean(
+    impact?.validations.some((validation) => validation.severity === "error"),
+  );
+
   return {
     status,
     impact,
     error,
     isCalculating: status === "calculating",
-    canSubmitAssessment: status === "valid",
+    hasBlockingValidation,
+    canSubmitAssessment: status === "valid" && !hasBlockingValidation,
     syncDraft,
     recalculate,
   };

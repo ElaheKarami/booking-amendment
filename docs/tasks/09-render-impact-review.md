@@ -19,7 +19,7 @@
 
 ## Acceptance Criteria
 
-- [ ] Each impact category is visibly distinguishable.
-- [ ] An error-severity validation blocks submission.
-- [ ] Previous stale results are visibly identified as outdated.
-- [ ] Detailed charge lines respect the required role gating.
+- [x] Each impact category is visibly distinguishable.
+- [x] An error-severity validation blocks submission.
+- [x] Previous stale results are visibly identified as outdated.
+- [x] Detailed charge lines respect the required role gating.

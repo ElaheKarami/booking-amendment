@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { Badge, Button, Card } from "@/components/atoms";
 import { PermissionGate } from "@/components/molecules";
 import AmendmentForm from "../AmendmentForm/AmendmentForm";
+import ImpactAssessmentPanel from "../ImpactAssessmentPanel/ImpactAssessmentPanel";
 import { useImpactAssessment } from "@/hooks";
 import type { BookingAmendmentFormValues } from "@/schemas/bookingAmendmentSchema";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
@@ -57,6 +58,7 @@ function BookingAmendmentWorkspace({
   const [draft, setDraft] = useState<BookingAmendmentDraft>(initialDraft);
   const {
     status,
+    impact,
     error,
     isCalculating,
     canSubmitAssessment,
@@ -124,6 +126,10 @@ function BookingAmendmentWorkspace({
               {feedback.label}
             </Badge>
           </div>
+          <ImpactAssessmentPanel
+            impact={impact}
+            stale={status === "stale"}
+          />
         </Card>
       </div>
 
