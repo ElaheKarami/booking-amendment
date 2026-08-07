@@ -1,4 +1,6 @@
-export { default as clsx } from "./clsx.js";
+export { default as clsx } from "./clsx";
+export { formatDate } from "./dateUtils";
+export type { FormatDateOptions } from "./dateUtils";
 export {
   truncateString,
   capitalize,
@@ -6,5 +8,5 @@ export {
   formatPrice,
   slugify,
   normalizeWhitespace,
-} from "./stringUtils.js";
-export type { TruncateOptions, CurrencyOptions } from "./stringUtils.js";
+} from "./stringUtils";
+export type { TruncateOptions, CurrencyOptions } from "./stringUtils";

@@ -80,7 +80,8 @@ describe("BookingAmendmentDetails", () => {
 
     expect(screen.getByText("BK-2026-001")).toBeInTheDocument();
     expect(screen.getByText("Confirmed")).toBeInTheDocument();
-    expect(screen.getByText(/v7 · updated/i)).toBeInTheDocument();
+    expect(screen.getByText("v7")).toBeInTheDocument();
+    expect(screen.getByText(/UTC/)).toBeInTheDocument();
     expect(screen.getByDisplayValue("NLRTM")).toBeInTheDocument();
     expect(screen.getByDisplayValue("AH026W")).toBeInTheDocument();
     expect(

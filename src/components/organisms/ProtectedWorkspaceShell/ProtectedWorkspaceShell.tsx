@@ -33,7 +33,7 @@ const GATED_ACTIONS: Array<{
 
 function ProtectedWorkspaceShell() {
   const { user, hasPermission } = useAuth();
-  const [showBookingDetails, setShowBookingDetails] = useState(true);
+  const [showBookingDetails, setShowBookingDetails] = useState(false);
 
   const handleActionClick = (permission: Permission) => {
     if (permission === "editAmendment") {

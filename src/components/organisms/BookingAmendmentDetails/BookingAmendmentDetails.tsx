@@ -1,45 +1,25 @@
 "use client";
 
 import { useMemo } from "react";
-import { Badge, Button, Card, TextField, TextItem } from "@/components/atoms";
+import { Button, Card, TextField } from "@/components/atoms";
 import { EmptyState, PermissionGate } from "@/components/molecules";
+import BookingHeader from "../BookingHeader/BookingHeader";
 import { BookingWorkspaceSkeleton } from "@/components/skeletons";
 import { DEFAULT_BOOKING_ID } from "@/constants";
 import { useBooking } from "@/hooks";
 import { ApiError } from "@/services/errorHandling";
 import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
 import { useAuth } from "@/providers";
-import type { BadgeTone } from "@/components/atoms";
 
 interface BookingAmendmentDetailsProps {
   bookingId?: string;
   onBack: () => void;
 }
 
-function formatLastUpdated(iso: string): string {
-  const formatted = new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(new Date(iso));
-
-  return `${formatted} UTC`;
-}
-
 function formatContainers(containers: ContainerRequirement[]): string {
   return containers
     .map((container) => `${container.quantity} × ${container.equipmentType}`)
     .join(", ");
-}
-
-function statusTone(status: string): BadgeTone {
-  const normalized = status.toLowerCase();
-
-  if (normalized.includes("confirm")) return "success";
-  if (normalized.includes("pending")) return "warning";
-  if (normalized.includes("cancel")) return "error";
-
-  return "info";
 }
 
 function BookingAmendmentDetails({
@@ -56,6 +36,7 @@ function BookingAmendmentDetails({
     error,
     refetch,
   } = useBooking(bookingId);
+
   const draft = useMemo(
     () => (booking ? bookingAmendmentDraftFromBooking(booking) : null),
     [booking],
@@ -109,47 +90,7 @@ function BookingAmendmentDetails({
 
   return (
     <div className="flex flex-col gap-6">
-      <Card
-        padded={false}
-        className="flex flex-wrap items-start justify-between gap-4 border-border px-6 py-5"
-      >
-        <div className="w-full">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="w-auto"
-          >
-            ← Back to workspace
-          </Button>
-          <h1 className="text-heading-2 text-text-1 my-3">Booking Details</h1>
-
-          <Card className="flex flex-col lg:flex-row gap-3 lg:gap-6 w-full mb-4">
-            <TextItem
-              title="Booking Request No."
-              text={booking.bookingNumber}
-            />
-            <TextItem
-              title="Booking Status"
-              text={
-                <Badge tone={statusTone(booking.status)}>
-                  {booking.status}
-                </Badge>
-              }
-            />
-            <TextItem title="Version" text={`v${booking.version}`} />
-            <TextItem
-              title="Last Updated"
-              text={formatLastUpdated(booking.lastUpdated)}
-            />
-          </Card>
-          <p className="text-body-sm text-text-2">
-            Review amendment fields, recalculate impact, then submit when ready.
-          </p>
-        </div>
-        {!canEdit && <Badge tone="warning">View only</Badge>}
-      </Card>
+      <BookingHeader booking={booking} canEdit={canEdit} onBack={onBack} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card padded={false} className="border-border px-6 py-5">
