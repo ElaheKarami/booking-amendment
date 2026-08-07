@@ -3,10 +3,7 @@ import clsx from "@/utils/clsx";
 import Spinner from "@/components/atoms/Spinner/Spinner";
 
 export type ButtonVariant =
-  | "primary"
-  | "primary-emphasis"
-  | "secondary"
-  | "ghost";
+  "primary" | "primary-emphasis" | "secondary" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -34,19 +31,19 @@ function Button({
   const rootClass = clsx(
     "inline-flex items-center justify-center gap-2 font-semibold rounded-btn select-none",
     "transition-colors duration-fast ease-motion-standard",
-    "focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed",
+    "cursor-pointer focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed",
     {
-      "bg-primary text-white hover:bg-[#0c7169] active:bg-[#0a6259] disabled:opacity-45":
+      "bg-primary text-onnavy-1 hover:bg-primary-hover active:bg-primary-active disabled:opacity-45":
         variant === "primary",
-      "bg-primary-emphasis text-white hover:bg-[#0f3a6b] active:bg-[#0d325d] disabled:opacity-45":
+      "bg-primary-emphasis text-onnavy-1 hover:bg-primary-emphasis-hover active:bg-primary-emphasis-active disabled:opacity-45":
         variant === "primary-emphasis",
       "bg-surface text-text-2-stronger border border-border-strong hover:bg-slate-50 active:bg-slate-200 disabled:text-text-3 disabled:border-border":
         variant === "secondary",
       "bg-transparent text-text-2-stronger hover:bg-slate-75 active:bg-slate-200 disabled:opacity-45":
         variant === "ghost",
       "h-8 px-3 text-body-sm": size === "sm",
-      "h-[38px] px-4 text-[14px]": size === "md",
-      "h-[46px] px-5 text-[14px] rounded-btn-lg": size === "lg",
+      "h-[38px] px-4 text-body font-semibold": size === "md",
+      "h-[46px] px-5 text-body font-semibold rounded-btn-lg": size === "lg",
       "w-full": fullWidth,
     },
     className,

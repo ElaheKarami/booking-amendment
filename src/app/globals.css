@@ -15,8 +15,7 @@
   body {
     min-height: 100%;
     margin: 0;
-    background: #eef1f5;
-    color: #11293f;
+    @apply bg-background text-text-1;
     font-family: var(--font-ibm-plex-sans), sans-serif;
   }
 

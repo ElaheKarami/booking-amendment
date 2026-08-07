@@ -13,7 +13,7 @@ export interface RadioProps extends Omit<
   ref?: Ref<HTMLInputElement>;
 }
 
-// FLAG: Radio is not designed in design.md — scaffolded with primary #0e8079.
+// FLAG: Radio is not designed in design.md — scaffolded with primary token.
 // Label wraps the control (no useId / htmlFor).
 function Radio({
   label,

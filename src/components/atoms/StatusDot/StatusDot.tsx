@@ -27,12 +27,12 @@ const TONE_CLASS: Record<StatusDotTone, string> = {
 };
 
 const HALO_CLASS: Record<StatusDotTone, string> = {
-  success: "shadow-[0_0_0_2px_#cfe0d6]",
-  warning: "shadow-[0_0_0_2px_#f0dcae]",
-  error: "shadow-[0_0_0_2px_#a8492a]",
-  info: "shadow-[0_0_0_2px_#cdddf0]",
-  lease: "shadow-[0_0_0_2px_#c7e6df]",
-  neutral: "shadow-[0_0_0_2px_#e4e9f0]",
+  success: "shadow-dot-ring-success",
+  warning: "shadow-dot-ring-warning",
+  error: "shadow-dot-ring-error",
+  info: "shadow-dot-ring-info",
+  lease: "shadow-dot-ring-lease",
+  neutral: "shadow-dot-ring-neutral",
 };
 
 function StatusDot({

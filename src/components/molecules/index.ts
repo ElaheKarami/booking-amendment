@@ -15,3 +15,8 @@ export type { StepItem, StepperProps, StepStatus } from "./Stepper/Stepper";
 
 export { default as Tabs } from "./Tabs/Tabs";
 export type { TabItem, TabsProps } from "./Tabs/Tabs";
+
+export { default as EmptyState } from "./EmptyState/EmptyState";
+export type { EmptyStateProps } from "./EmptyState/EmptyState";
+
+export { default as PermissionGate } from "./PermissionGate/PermissionGate";

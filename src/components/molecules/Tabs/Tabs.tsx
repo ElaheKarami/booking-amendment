@@ -48,7 +48,7 @@ function Tabs({
   return (
     <div
       role="tablist"
-      className={clsx("flex gap-26 border-b border-border", className)}
+      className={clsx("flex gap-[26px] border-b border-border", className)}
       onKeyDown={onKeyDown}
       {...rest}
     >

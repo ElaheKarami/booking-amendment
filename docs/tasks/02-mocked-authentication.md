@@ -20,8 +20,8 @@
 
 ## Acceptance Criteria
 
-- [ ] Operations User can edit and submit.
-- [ ] Operations Supervisor can override eligible warnings and view detailed charge impact.
-- [ ] Commercial Reviewer can view detailed charge impact.
-- [ ] A missing or invalid session reaches the authentication boundary.
-- [ ] No token is exposed to browser JavaScript, `localStorage`, or `sessionStorage`.
+- [x] Operations User can edit and submit.
+- [x] Operations Supervisor can override eligible warnings and view detailed charge impact.
+- [x] Commercial Reviewer can view detailed charge impact.
+- [x] A missing or invalid session reaches the authentication boundary.
+- [x] No token is exposed to browser JavaScript, `localStorage`, or `sessionStorage`.

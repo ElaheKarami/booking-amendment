@@ -18,7 +18,7 @@ export interface TextFieldProps extends Omit<
   ref?: Ref<HTMLInputElement>;
 }
 
-// Text input (design.md §10.1: border #e4e9f0, radius 8px, h32, 12.5px).
+// Text input (design.md §10.1: border token, radius-lg, h32, label size).
 // FLAG: focus/error/disabled states are not designed — implemented from tokens.
 // Label association via nesting (no useId). Pass `id` when aria-describedby is needed.
 function TextField({

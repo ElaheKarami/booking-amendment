@@ -13,7 +13,7 @@ export interface CheckboxProps extends Omit<
   ref?: Ref<HTMLInputElement>;
 }
 
-// FLAG: Checkbox is not designed in design.md — scaffolded with accent #2f73c4.
+// FLAG: Checkbox is not designed in design.md — scaffolded with accent token.
 // Label wraps the control (no useId / htmlFor).
 function Checkbox({
   label,
