@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import clsx from "@/utils/clsx";
-import { ChevronDownIcon, SearchIcon } from "../../icons";
+import { ChevronDownIcon, SearchIcon } from "@/components/icons";
 
 export interface SearchSelectOption {
   label: string;

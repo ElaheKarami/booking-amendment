@@ -1,6 +1,6 @@
 import { type Ref, type SelectHTMLAttributes } from "react";
 import clsx from "@/utils/clsx";
-import { ChevronDownIcon } from "../../icons";
+import { ChevronDownIcon } from "@/components/icons";
 
 export interface SelectOption {
   label: string;

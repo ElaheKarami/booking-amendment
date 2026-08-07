@@ -1,4 +1,9 @@
 import { isAxiosError } from "axios";
+import {
+  showMessage,
+  type ShowMessageOptions,
+} from "@/components/atoms/ToastBanner/showMessage";
+import type { ToastType } from "@/components/atoms/ToastBanner/ToastBanner";
 
 export class ApiError extends Error {
   readonly status: number | undefined;
@@ -34,4 +39,112 @@ export function normalizeApiError(error: unknown): ApiError {
   }
 
   return new ApiError("An unexpected error occurred.");
+}
+
+type NotifyType = Extract<ToastType, "error" | "success" | "warning">;
+
+interface TrackedMessage {
+  key: string;
+  expiresIn: number;
+}
+
+const DEBOUNCE_MS = 15_000;
+const FILTERED_MESSAGES = [
+  "Profile picture not found for provided user",
+  "could not find entity",
+  "not found",
+];
+
+let tracked: TrackedMessage[] = [];
+
+function purgeExpired(): void {
+  const now = Date.now();
+  tracked = tracked.filter((item) => item.expiresIn > now);
+}
+
+function shouldShow(messages: string[], forceShow: boolean): boolean {
+  if (forceShow) return true;
+  purgeExpired();
+  const key = messages.join("\n");
+  if (tracked.some((item) => item.key === key)) return false;
+  if (
+    FILTERED_MESSAGES.some((filtered) =>
+      messages.some((message) => message.includes(filtered)),
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function track(messages: string[]): void {
+  tracked.push({
+    key: messages.join("\n"),
+    expiresIn: Date.now() + DEBOUNCE_MS,
+  });
+}
+
+function toMessages(
+  description: string | string[],
+): string[] {
+  return Array.isArray(description) ? description : [description];
+}
+
+export function notify(
+  type: NotifyType,
+  description: string | string[],
+  options?: ShowMessageOptions & { forceShow?: boolean },
+): string | null {
+  const messages = toMessages(description);
+  const forceShow = options?.forceShow ?? false;
+
+  if (type === "error" && !shouldShow(messages, forceShow)) {
+    return null;
+  }
+
+  if (type === "error") {
+    track(messages);
+  }
+
+  const toastOptions: ShowMessageOptions = {
+    duration: options?.duration,
+    linkHref: options?.linkHref,
+    linkText: options?.linkText,
+    id: options?.id,
+  };
+  return showMessage(type, messages, toastOptions);
+}
+
+export function showErrorMessage(
+  description: string | string[],
+  options?: ShowMessageOptions & { forceShow?: boolean },
+): string | null {
+  return notify("error", description, options);
+}
+
+export function showSuccessMessage(
+  description: string | string[],
+  options?: ShowMessageOptions,
+): string | null {
+  return notify("success", description, options);
+}
+
+export function showWarningMessage(
+  description: string | string[],
+  options?: ShowMessageOptions,
+): string | null {
+  return notify("warning", description, options);
+}
+
+export function reportApiError(
+  error: unknown,
+  options?: ShowMessageOptions & { forceShow?: boolean },
+): ApiError {
+  const normalized = normalizeApiError(error);
+  const messages =
+    normalized.reasons.length > 0
+      ? normalized.reasons
+      : [normalized.message];
+  showErrorMessage(messages, options);
+  return normalized;
 }

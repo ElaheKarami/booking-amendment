@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import clsx from "@/utils/clsx";
-import { CloseIcon } from "../../icons";
+import { CloseIcon } from "@/components/icons";
 
 export type ModalSize = "sm" | "md" | "lg";
 
@@ -19,8 +19,8 @@ export interface ModalProps {
   className?: string;
 }
 
-// FLAG: Modal is not designed in design.md — scaffolded with elevation-4 + z-modal
-// scrim. Escape + scrim close, body scroll lock, initial focus. Not a full focus trap.
+// FLAG: Modal is not designed in design.md — scaffolded with elevation-4 + z-modal.
+// Escape + scrim close, body scroll lock, initial focus. Not a full focus trap.
 export default function Modal({
   open,
   onClose,
@@ -34,7 +34,7 @@ export default function Modal({
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: globalThis.KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
