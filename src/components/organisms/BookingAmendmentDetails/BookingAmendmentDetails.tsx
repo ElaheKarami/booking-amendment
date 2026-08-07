@@ -1,17 +1,111 @@
 "use client";
 
-import { Badge, Button, Card, Tag, TextField } from "@/components/atoms";
-import { PermissionGate } from "@/components/molecules";
+import { useMemo } from "react";
+import { Badge, Button, Card, TextField, TextItem } from "@/components/atoms";
+import { EmptyState, PermissionGate } from "@/components/molecules";
+import { BookingWorkspaceSkeleton } from "@/components/skeletons";
+import { DEFAULT_BOOKING_ID } from "@/constants";
+import { useBooking } from "@/hooks";
+import { ApiError } from "@/services/errorHandling";
+import { bookingAmendmentDraftFromBooking } from "@/transformers/bookingAmendmentTransformer";
 import { useAuth } from "@/providers";
+import type { BadgeTone } from "@/components/atoms";
 
 interface BookingAmendmentDetailsProps {
+  bookingId?: string;
   onBack: () => void;
 }
 
-function BookingAmendmentDetails({ onBack }: BookingAmendmentDetailsProps) {
+function formatLastUpdated(iso: string): string {
+  const formatted = new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(iso));
+
+  return `${formatted} UTC`;
+}
+
+function formatContainers(containers: ContainerRequirement[]): string {
+  return containers
+    .map((container) => `${container.quantity} × ${container.equipmentType}`)
+    .join(", ");
+}
+
+function statusTone(status: string): BadgeTone {
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes("confirm")) return "success";
+  if (normalized.includes("pending")) return "warning";
+  if (normalized.includes("cancel")) return "error";
+
+  return "info";
+}
+
+function BookingAmendmentDetails({
+  bookingId = DEFAULT_BOOKING_ID,
+  onBack,
+}: BookingAmendmentDetailsProps) {
   const { hasPermission } = useAuth();
   const canEdit = hasPermission("editAmendment");
   const canSubmit = hasPermission("submitAmendment");
+  const {
+    data: booking,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useBooking(bookingId);
+  const draft = useMemo(
+    () => (booking ? bookingAmendmentDraftFromBooking(booking) : null),
+    [booking],
+  );
+
+  if (isLoading) {
+    return <BookingWorkspaceSkeleton />;
+  }
+
+  if (isError) {
+    const apiError = error instanceof ApiError ? error : null;
+    const isNotFound = apiError?.status === 404;
+    const message =
+      apiError?.reasons[0] ??
+      apiError?.message ??
+      "Unable to load the booking.";
+
+    return (
+      <EmptyState
+        title={isNotFound ? "Booking not found" : "Unable to load booking"}
+        description={message}
+        action={
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button type="button" variant="secondary" onClick={onBack}>
+              Back to workspace
+            </Button>
+            {!isNotFound && (
+              <Button type="button" variant="primary" onClick={() => refetch()}>
+                Try again
+              </Button>
+            )}
+          </div>
+        }
+      />
+    );
+  }
+
+  if (!booking || !draft) {
+    return (
+      <EmptyState
+        title="Booking not found"
+        description="The requested booking could not be loaded."
+        action={
+          <Button type="button" variant="secondary" onClick={onBack}>
+            Back to workspace
+          </Button>
+        }
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -19,19 +113,37 @@ function BookingAmendmentDetails({ onBack }: BookingAmendmentDetailsProps) {
         padded={false}
         className="flex flex-wrap items-start justify-between gap-4 border-border px-6 py-5"
       >
-        <div className="flex flex-col gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+        <div className="w-full">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="w-auto"
+          >
             ← Back to workspace
           </Button>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-heading-2 text-text-1">
-              Booking <Tag>BK-482193</Tag>
-            </h1>
-            <Badge tone="success">Confirmed</Badge>
-            <span className="font-mono text-label text-text-2-strong">
-              v3 · updated 2026-08-06 14:22 UTC
-            </span>
-          </div>
+          <h1 className="text-heading-2 text-text-1 my-3">Booking Details</h1>
+
+          <Card className="flex flex-col lg:flex-row gap-3 lg:gap-6 w-full mb-4">
+            <TextItem
+              title="Booking Request No."
+              text={booking.bookingNumber}
+            />
+            <TextItem
+              title="Booking Status"
+              text={
+                <Badge tone={statusTone(booking.status)}>
+                  {booking.status}
+                </Badge>
+              }
+            />
+            <TextItem title="Version" text={`v${booking.version}`} />
+            <TextItem
+              title="Last Updated"
+              text={formatLastUpdated(booking.lastUpdated)}
+            />
+          </Card>
           <p className="text-body-sm text-text-2">
             Review amendment fields, recalculate impact, then submit when ready.
           </p>
@@ -60,34 +172,39 @@ function BookingAmendmentDetails({ onBack }: BookingAmendmentDetailsProps) {
               <TextField
                 id="port-of-discharge"
                 label="Port of discharge"
-                defaultValue="NLRTM"
+                defaultValue={draft.portOfDischarge}
                 disabled={!canEdit}
+                readOnly
               />
               <TextField
                 id="voyage"
                 label="Planned voyage"
-                defaultValue="AE7-W-2026-32"
+                defaultValue={booking.voyageNumber}
                 disabled={!canEdit}
+                readOnly
               />
               <TextField
                 id="cargo-readiness"
                 label="Cargo readiness date"
                 type="date"
-                defaultValue="2026-08-18"
+                defaultValue={draft.cargoReadinessDate}
                 disabled={!canEdit}
+                readOnly
               />
               <TextField
                 id="containers"
                 label="Containers"
-                defaultValue="2 × 40HC"
+                defaultValue={formatContainers(draft.containers)}
                 disabled={!canEdit}
+                readOnly
               />
               <TextField
                 id="special-instructions"
                 label="Special instructions"
-                defaultValue="Keep reefer setpoint 2°C"
+                defaultValue={draft.specialInstructions ?? ""}
                 containerClassName="sm:col-span-2"
                 disabled={!canEdit}
+                readOnly
               />
             </div>
           </PermissionGate>
@@ -96,72 +213,9 @@ function BookingAmendmentDetails({ onBack }: BookingAmendmentDetailsProps) {
         <Card padded={false} className="border-border px-6 py-5">
           <h2 className="text-section text-text-1">Impact assessment</h2>
           <p className="mt-1 text-body-sm text-text-2">
-            High-level schedule, equipment, and charge deltas for the current
-            draft.
+            Run Recalculate to view schedule, equipment, and charge impacts for
+            the current draft.
           </p>
-
-          <dl className="mt-5 space-y-3">
-            <div className="flex items-center justify-between gap-3 border-b border-border-card pb-3">
-              <dt className="text-caption text-text-3">Schedule</dt>
-              <dd className="text-body-sm text-text-1">ETA +1 day</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-b border-border-card pb-3">
-              <dt className="text-caption text-text-3">Equipment</dt>
-              <dd className="text-body-sm text-text-1">Available</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-b border-border-card pb-3">
-              <dt className="text-caption text-text-3">Charge difference</dt>
-              <dd className="font-mono text-body-sm text-text-1">+ USD 180</dd>
-            </div>
-          </dl>
-
-          <div className="mt-5 space-y-3">
-            <PermissionGate
-              permission="viewDetailedChargeImpact"
-              fallback={
-                <p className="text-body-sm text-text-2-strong">
-                  Detailed charge lines are restricted to commercial reviewers
-                  and operations supervisors.
-                </p>
-              }
-            >
-              <Card
-                variant="table"
-                padded={false}
-                className="space-y-2 bg-slate-50 p-4"
-              >
-                <p className="text-caption font-semibold uppercase tracking-[0.06em] text-text-3">
-                  Detailed charge impact
-                </p>
-                <p className="font-mono text-label text-text-1">
-                  Ocean freight adj. · + USD 120
-                </p>
-                <p className="font-mono text-label text-text-1">
-                  BAF · + USD 60
-                </p>
-              </Card>
-            </PermissionGate>
-
-            <PermissionGate permission="overrideEligibleWarning" fallback={null}>
-              <Card
-                variant="table"
-                padded={false}
-                className="flex flex-wrap items-center justify-between gap-3 border-amber-100 bg-amber-50 p-4"
-              >
-                <div>
-                  <p className="text-body-sm font-medium text-warning">
-                    Eligible warning
-                  </p>
-                  <p className="mt-0.5 text-caption text-text-2-strong">
-                    Cut-off is within 48 hours for the selected voyage.
-                  </p>
-                </div>
-                <Button type="button" variant="secondary" size="sm">
-                  Override warning
-                </Button>
-              </Card>
-            </PermissionGate>
-          </div>
         </Card>
       </div>
 

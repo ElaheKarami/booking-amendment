@@ -6,6 +6,20 @@ export function bookingConvertToLocalData(data: BookingDto): Booking {
   };
 }
 
+export function bookingAmendmentDraftFromBooking(
+  booking: Booking,
+): BookingAmendmentDraft {
+  return {
+    bookingId: booking.id,
+    baseVersion: booking.version,
+    portOfDischarge: booking.portOfDischarge,
+    voyageId: booking.voyageId,
+    cargoReadinessDate: booking.cargoReadinessDate,
+    containers: booking.containers.map((container) => ({ ...container })),
+    specialInstructions: booking.specialInstructions,
+  };
+}
+
 export function voyageConvertToLocalData(data: VoyageOptionDto): VoyageOption {
   return { ...data };
 }

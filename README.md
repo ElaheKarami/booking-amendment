@@ -1,8 +1,8 @@
 # Frontend Assessment
 
 A Next.js App Router application for the Booking Amendment assessment. Mocked
-authentication and UI permission gates are in place; domain features follow in
-later tasks.
+authentication, UI permission gates, typed domain models, and mock booking APIs
+are in place; workspace UI features follow in later tasks.
 
 ## Prerequisites
 
@@ -118,10 +118,12 @@ sign-in matches product branding while the app still redirects through NextAuth.
 - TanStack Query root provider for server state.
 - Mocked auth session, `AuthProvider`, `proxy.ts` route protection, and UI
   permission gates.
-- A typed Axios service foundation with response transformers and centralized error
-  normalization.
-- A same-origin BFF route at `src/app/api/[...path]/route.ts`; it reads an HttpOnly
-  access-token cookie on the server and forwards requests to `BACKEND_URL`.
+- Typed booking-amendment domain models in root `types.d.ts`.
+- Mock booking API route handlers with deterministic scenario outcomes.
+- Feature services and transformers for booking, voyages, assessment, and
+  submission; transport errors normalize to `ApplicationError`.
+- A same-origin BFF catch-all at `src/app/api/[...path]/route.ts` for upstream
+  forwarding when `BACKEND_URL` is set; specific mock routes take precedence.
 - Root loading and error boundaries.
 - ESLint, Prettier, Jest with React Testing Library, and Playwright configuration.
 
@@ -130,17 +132,74 @@ sign-in matches product branding while the app still redirects through NextAuth.
 The project enforces this data flow:
 
 ```text
-Component → Hook → Feature service → apiRequestObject → Axios → BFF → Backend
+Component → Hook → Feature service → apiRequestObject → Axios → BFF / mock route → Backend
 ```
 
 Backend DTOs must be transformed before they reach UI components. Components and hooks
 must not call Axios, `fetch`, or backend APIs directly.
 
+## Mock APIs and domain models
+
+Shared booking-amendment types live in root `types.d.ts`: `Booking`,
+`BookingAmendmentDraft`, `VoyageOption`, `AmendmentImpact`, submission models, and
+`ApplicationError`. The original booking snapshot and the editable draft remain
+distinct; transformers copy nested data so callers cannot mutate server state in
+place.
+
+Mock route handlers under `src/app/api` implement the challenge endpoints:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/bookings/:id` | Load booking snapshot |
+| `GET` | `/api/voyages` | Voyage options (route, readiness, search) |
+| `POST` | `/api/bookings/:id/amendments/assess` | Impact assessment |
+| `POST` | `/api/bookings/:id/amendments` | Submit amendment (idempotent) |
+| `GET` | `/api/amendment-submissions/:id/status` | Submission status |
+| `GET` | `/api/bookings/:id/latest-version` | Latest booking version |
+
+Handlers check the mock session and permission before responding. Mock data and
+scenario logic live in `src/lib/mockBookingApi.ts` (process-local, non-persistent).
+
+### Deterministic scenarios
+
+Pass an optional `scenario` query parameter to exercise challenge outcomes:
+
+| `scenario` | Typical use |
+| --- | --- |
+| `normal` | Happy path (default) |
+| `validation` | Business / field validation error |
+| `slow` | Delayed response |
+| `conflict` | `409` with `BOOKING_VERSION_CONFLICT` |
+| `timeout` | Network / timeout failure |
+| `unknown` | Ambiguous submission result after send |
+| `duplicate` | Idempotent resubmit of the same key |
+| `out-of-order` | Slower assessment (stale-response drills) |
+
+Example: `GET /api/bookings/booking-001?scenario=slow`.
+
+Client code should call `src/services/bookingAmendmentService.ts` only. That layer
+uses `apiRequestObject`, request/response transformers in
+`src/transformers/bookingAmendmentTransformer.ts`, and
+`src/services/errorHandling.ts` so raw Axios errors never reach components.
+
+Version conflicts return the documented body:
+
+```json
+{
+  "code": "BOOKING_VERSION_CONFLICT",
+  "currentVersion": 7,
+  "message": "The booking was modified by another user."
+}
+```
+
+The error normalizer maps that shape (and typed `ApplicationError` payloads) into
+application state for hooks and UI.
+
 ## Source structure
 
 ```text
 src/
-  app/             App Router routes, layouts, and BFF route handlers
+  app/             App Router routes, layouts, mock API handlers, and BFF proxy
                    (protected workspace under app/(workspace)/)
   components/      Atomic UI: atoms, molecules, organisms, templates, skeletons
   providers/       Root React providers (Query + Auth)
@@ -148,7 +207,7 @@ src/
   hooks/           UI orchestration and TanStack Query hooks
   schemas/         Zod validation schemas
   transformers/    Backend DTO ↔ frontend model conversions
-  lib/             Server utilities (session, permission helpers)
+  lib/             Server utilities (session, mock API state, permission helpers)
   utils/           Pure utility functions
   constants/       Application constants
   proxy.ts         Route protection (Next.js 16)
@@ -158,5 +217,6 @@ Detailed architecture, contracts, patterns, and rules are documented in `docs/`.
 
 ## Status
 
-Foundation and mocked authentication are in place. Booking amendment domain features
-(load booking, form, impact assessment, submit) are not implemented yet.
+Foundation, mocked authentication, domain models, and mock booking APIs are in
+place. Booking amendment workspace features (load booking into the UI, form,
+impact assessment UX, submit flow) follow in later tasks.

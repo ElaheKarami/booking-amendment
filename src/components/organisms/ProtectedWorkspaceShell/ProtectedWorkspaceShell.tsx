@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button, Card } from "@/components/atoms";
 import BookingAmendmentDetails from "../BookingAmendmentDetails/BookingAmendmentDetails";
 import { PermissionGate } from "@/components/molecules";
+import { DEFAULT_BOOKING_ID } from "@/constants";
 import { clearMockSession } from "@/lib/mockSession";
 import { useAuth } from "@/providers";
 
@@ -32,7 +33,7 @@ const GATED_ACTIONS: Array<{
 
 function ProtectedWorkspaceShell() {
   const { user, hasPermission } = useAuth();
-  const [showBookingDetails, setShowBookingDetails] = useState(false);
+  const [showBookingDetails, setShowBookingDetails] = useState(true);
 
   const handleActionClick = (permission: Permission) => {
     if (permission === "editAmendment") {
@@ -45,6 +46,7 @@ function ProtectedWorkspaceShell() {
       <div className="mx-auto flex max-w-[1180px] flex-col gap-6">
         {showBookingDetails ? (
           <BookingAmendmentDetails
+            bookingId={DEFAULT_BOOKING_ID}
             onBack={() => setShowBookingDetails(false)}
           />
         ) : (

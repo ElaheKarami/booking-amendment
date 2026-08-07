@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerAxios } from "@/services/axios";
+import { createServerAxios } from "@/services/axios/serverAxios";
 import { normalizeApiError } from "@/services/errorHandling";
 
 type RouteContext = {

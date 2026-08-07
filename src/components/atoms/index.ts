@@ -2,11 +2,7 @@ export { default as Badge } from "./Badge/Badge";
 export type { BadgeProps, BadgeTone, BadgeVariant } from "./Badge/Badge";
 
 export { default as Button } from "./Button/Button";
-export type {
-  ButtonProps,
-  ButtonSize,
-  ButtonVariant,
-} from "./Button/Button";
+export type { ButtonProps, ButtonSize, ButtonVariant } from "./Button/Button";
 
 export { default as Card } from "./Card/Card";
 export type { CardProps, CardVariant } from "./Card/Card";
@@ -58,3 +54,6 @@ export type {
   ToastType,
   ToastViewportProps,
 } from "./ToastBanner";
+
+export { default as TextItem } from "./TextItem/TextItem";
+export type { TextItemProps } from "./TextItem/TextItem";

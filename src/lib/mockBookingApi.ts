@@ -6,7 +6,7 @@ type MockApiResult<T> = {
 
 const booking: Booking = {
   id: "booking-001",
-  bookingNumber: "BK-2026-001",
+  bookingNumber: "SLK1100354",
   customer: "Northstar Imports",
   status: "Confirmed",
   version: 7,
