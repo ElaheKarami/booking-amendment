@@ -19,6 +19,6 @@
 
 ## Acceptance Criteria
 
-- [ ] Voyage loading supports loading, empty, success, and error states.
-- [ ] Search does not fire on every keystroke.
-- [ ] Invalid cut-off date or unsupported 40HC selection is shown as form validation.
+- [x] Voyage loading supports loading, empty, success, and error states.
+- [x] Search does not fire on every keystroke.
+- [x] Invalid cut-off date or unsupported 40HC selection is shown as form validation.
