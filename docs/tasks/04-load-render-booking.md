@@ -20,7 +20,7 @@
 
 ## Acceptance Criteria
 
-- [ ] Booking header contains required values.
-- [ ] Loading, success, and error states are visible.
-- [ ] The initial draft equals permitted booking values without mutating the booking response.
-- [ ] The workspace remains a single primary workspace.
+- [x] Booking header contains required values.
+- [x] Loading, success, and error states are visible.
+- [x] The initial draft equals permitted booking values without mutating the booking response.
+- [x] The workspace remains a single primary workspace.
